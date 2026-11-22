@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- App icon: broom + shield — "clean & secure" concept -->
+<!-- App icon: broom + shield — clean & secure concept -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -28,14 +28,24 @@
         android:fillColor="#00BCD4"
         android:pathData="M38,70 C36,66 38,62 42,60 L50,58 L52,68 C49,72 44,74 38,70 Z"/>
 
-    <!-- Sparkle dots (clean effect) -->
-    <circle android:fillColor="#FFFFFF" android:cx="66" cy="34" android:r="2"/>
-    <circle android:fillColor="#FFD54F" android:cx="72" cy="42" android:r="1.5"/>
-    <circle android:fillColor="#FFFFFF" android:cx="68" cy="50" android:r="1"/>
+    <!-- Sparkle dot 1 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M66,32 A2,2 0 1,1 65.99,32 Z"/>
+
+    <!-- Sparkle dot 2 -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M72,40.5 A1.5,1.5 0 1,1 71.99,40.5 Z"/>
+
+    <!-- Sparkle dot 3 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M68,49 A1,1 0 1,1 67.99,49 Z"/>
 
     <!-- Checkmark on shield (security) -->
     <path
-        android:fillColor="#FFFFFF"
+        android:fillColor="#00000000"
         android:pathData="M46,52 L51,58 L62,44"
         android:strokeColor="#FFFFFF"
         android:strokeWidth="3"
