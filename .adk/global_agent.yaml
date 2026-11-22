@@ -1,0 +1,11 @@
+# Storage Cleaner — Google ADK Agent Config (global overlay)
+# Place this in ~/.adk/agents/ to make the agent available globally
+
+agents:
+  - name: android-dev-assistant
+    model: gemini-2.0-flash
+    description: Global Android development assistant
+    instruction: |
+      You are a senior Android / Kotlin / Jetpack Compose developer.
+      Help with architecture decisions, Compose UI patterns, Gradle configs,
+      ProGuard rules, signing configs, and GitHub Actions CI/CD for Android.

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Storage Cleaner</string>
+    <string name="app_description">Free up space by scanning and permanently deleting junk, duplicates, and unwanted files.</string>
+    <string name="developer">Niranjan Kumar Singh</string>
+</resources>

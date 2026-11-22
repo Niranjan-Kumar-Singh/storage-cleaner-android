@@ -1,6 +1,16 @@
+# Git ignore for Android / Kotlin / Gradle projects
 .gradle/
 build/
 local.properties
 .idea/
 *.iml
 .DS_Store
+*.keystore
+!app/debug.keystore
+*.jks
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+!app/build/outputs/apk/debug/*.apk
+google-services.json
