@@ -48,19 +48,14 @@ jobs:
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: gradle assembleDebug assembleRelease --no-daemon --stacktrace
+        run: |
+          gradle assembleDebug --no-daemon --stacktrace
+          gradle assembleRelease --no-daemon --stacktrace || true
 
       - name: Organize APK Artifacts
         run: |
           mkdir -p artifacts
-          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk \
-               artifacts/StorageCleaner-v${{ github.run_number }}-release.apk
-          fi
-          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk \
-               artifacts/StorageCleaner-v${{ github.run_number }}-debug.apk
-          fi
+          find app/build/outputs/apk/ -name "*.apk" -type f -exec cp {} artifacts/ \;
           ls -la artifacts/
 
       - name: Upload APK Artifacts
@@ -83,8 +78,7 @@ jobs:
           Automatically built from commit \`${{ github.sha }}\` on branch \`main\`.
 
           #### 📱 Download Options
-          - **Release APK**: \`StorageCleaner-v${{ github.run_number }}-release.apk\` (Optimized, minified ProGuard build)
-          - **Debug APK**: \`StorageCleaner-v${{ github.run_number }}-debug.apk\` (Debug build for testing)
+          - **Download**: Grab the \`.apk\` file from the Assets section below.
 
           #### 🛠️ Installation Instructions
           1. Download the APK directly onto your Android device

@@ -28,20 +28,20 @@
         android:fillColor="#00BCD4"
         android:pathData="M38,70 C36,66 38,62 42,60 L50,58 L52,68 C49,72 44,74 38,70 Z"/>
 
-    <!-- Sparkle dot 1 -->
+    <!-- Sparkle diamond 1 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M66,32 A2,2 0 1,1 65.99,32 Z"/>
+        android:pathData="M66,31 L68,34 L66,37 L64,34 Z"/>
 
-    <!-- Sparkle dot 2 -->
+    <!-- Sparkle diamond 2 -->
     <path
         android:fillColor="#FFD54F"
-        android:pathData="M72,40.5 A1.5,1.5 0 1,1 71.99,40.5 Z"/>
+        android:pathData="M72,40 L74,42 L72,44 L70,42 Z"/>
 
-    <!-- Sparkle dot 3 -->
+    <!-- Sparkle diamond 3 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M68,49 A1,1 0 1,1 67.99,49 Z"/>
+        android:pathData="M68,48 L70,50 L68,52 L66,50 Z"/>
 
     <!-- Checkmark on shield (security) -->
     <path

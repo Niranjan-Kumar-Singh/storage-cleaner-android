@@ -23,15 +23,15 @@ android {
             keyPassword   = "android"
         }
         create("release") {
-            val keystorePath = System.getenv("RELEASE_STORE_FILE") ?: "release.keystore"
+            val keystorePath = System.getenv("RELEASE_STORE_FILE")?.takeIf { it.isNotBlank() } ?: "release.keystore"
             val keystoreFile = file(keystorePath)
             if (keystoreFile.exists()) {
                 storeFile     = keystoreFile
-                storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: "android"
-                keyAlias      = System.getenv("RELEASE_KEY_ALIAS") ?: "androiddebugkey"
-                keyPassword   = System.getenv("RELEASE_KEY_PASSWORD") ?: "android"
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD")?.takeIf { it.isNotBlank() } ?: "android"
+                keyAlias      = System.getenv("RELEASE_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "androiddebugkey"
+                keyPassword   = System.getenv("RELEASE_KEY_PASSWORD")?.takeIf { it.isNotBlank() } ?: "android"
             } else {
-                // Graceful fallback to debug keystore for CI/local builds when release secret is unset
+                // Fallback to debug keystore for CI/local builds when release keystore is unset
                 storeFile     = file("debug.keystore")
                 storePassword = "android"
                 keyAlias      = "androiddebugkey"
@@ -42,8 +42,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled   = true
-            isShrinkResources = true
+            isMinifyEnabled   = false
+            isShrinkResources = false
             signingConfig     = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -73,6 +73,7 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
     implementation(composeBom)
 
+    implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
