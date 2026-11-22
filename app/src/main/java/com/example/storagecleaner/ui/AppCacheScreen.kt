@@ -32,6 +32,7 @@ data class AppInfo(
     val isSystem:    Boolean
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppCacheScreen(context: Context, onBack: () -> Unit) {
     var apps    by remember { mutableStateOf(listOf<AppInfo>()) }

@@ -131,6 +131,10 @@ object ReminderManager {
             .setAutoCancel(true)
             .build()
 
-        nm.notify(NOTIFICATION_ID, notification)
+        try {
+            nm.notify(NOTIFICATION_ID, notification)
+        } catch (_: Exception) {
+            // Best effort notification
+        }
     }
 }

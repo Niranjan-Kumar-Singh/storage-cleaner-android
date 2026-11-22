@@ -727,6 +727,7 @@ fun StorageCleanerApp(
 }
 
 // ─── FileRow ──────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileRow(item: FileItem, isSelected: Boolean, maxSize: Long, showBar: Boolean,
             isDup: Boolean, onClick: () -> Unit, onCheck: () -> Unit) {

@@ -25,6 +25,7 @@ import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecycleBinScreen(
     context: Context,
