@@ -22,13 +22,14 @@ fun covered(p: String, sel: Set<String>): Boolean {
 }
 
 fun isSystemPath(path: String): Boolean {
-    val low = path.lowercase()
-    return SYSTEM_PROTECTED_PATHS.any { path.startsWith(it) } ||
+    val norm = path.replace('\\', '/')
+    val low = norm.lowercase()
+    return SYSTEM_PROTECTED_PATHS.any { norm.startsWith(it) } ||
         SYSTEM_PATH_SEGMENTS.any { low.contains(it) }
 }
 
 fun makeItem(f: File, now: Long): FileItem {
-    val path = f.path; val low = path.lowercase()
+    val path = f.path; val low = path.lowercase().replace('\\', '/')
     val name = f.name.lowercase(); val ext = name.substringAfterLast('.', "")
     val mod = f.lastModified(); val size = f.length()
     var tags = 0

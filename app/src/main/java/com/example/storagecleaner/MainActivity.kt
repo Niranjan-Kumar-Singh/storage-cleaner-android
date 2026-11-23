@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -119,6 +120,7 @@ fun StorageCleanerApp(
     val ctx   = LocalContext.current
     val scope = rememberCoroutineScope()
     val pal   = appPalette()
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     // ── Navigation state ─────────────────────────────────────────────
     var screen by remember { mutableStateOf<Screen>(Screen.FileList) }
@@ -206,7 +208,7 @@ fun StorageCleanerApp(
     fun performDelete(targets: List<String>, mode: SecureDelete.Mode) {
         scope.launch {
             scanning  = true
-            statusMsg = if (mode == SecureDelete.Mode.SECURE_WIPE) "🔒 Secure Wiping (DoD 3-pass)…" else "🗑️ Deleting…"
+            statusMsg = if (mode == SecureDelete.Mode.SECURE_WIPE) "Secure wiping (DoD 3-pass)…" else "Deleting…"
             var result: SecureDelete.DeleteResult? = null
             var newScan: ScanResult? = null
             withContext(Dispatchers.IO) {
@@ -222,8 +224,7 @@ fun StorageCleanerApp(
             val r = result!!
             feedbackOk  = r.failed == 0
             feedbackMsg = buildString {
-                append(if (r.failed == 0) "✅" else "⚠️")
-                append(" Deleted ${r.deleted} items, freed ${fmt(r.freedBytes)}")
+                append("Deleted ${r.deleted} items, freed ${fmt(r.freedBytes)}")
                 if (r.secureWiped > 0)      append(" (${r.secureWiped} permanently wiped)")
                 if (r.standardDeleted > 0)  append(" (${r.standardDeleted} deleted)")
                 if (r.failed > 0) append(". ${r.failed} could not be deleted (system locked).")
@@ -232,434 +233,459 @@ fun StorageCleanerApp(
         }
     }
 
-    // ── Layout ────────────────────────────────────────────────────────
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(pal.Navy),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("⚡", fontSize = 18.sp)
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Column {
+    // ── Modern Navigation Drawer Layout ──────────────────────────────
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            AppDrawerContent(
+                currentScreen = when (screen) {
+                    is Screen.RecycleBin -> "RecycleBin"
+                    is Screen.AppCache -> "AppCache"
+                    else -> "FileList"
+                },
+                trashCount = RecycleBin.loadItems().size,
+                themeMode = themeMode,
+                onSelectScreen = { sel ->
+                    screen = when (sel) {
+                        "RecycleBin" -> Screen.RecycleBin
+                        "AppCache" -> Screen.AppCache
+                        else -> Screen.FileList
+                    }
+                },
+                onThemeModeChange = onThemeModeChange,
+                onShowReminders = { showReminderDialog = true },
+                onCloseDrawer = { scope.launch { drawerState.close() } }
+            )
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "Storage Cleaner",
-                                fontSize = 17.sp,
+                                text = "Storage Cleaner",
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = pal.TextPrimary
                             )
-                            Text(
-                                "by Niranjan Kumar Singh",
-                                fontSize = 10.sp,
-                                color = pal.TextSecond
-                            )
+                            Spacer(Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = pal.Navy.copy(alpha = 0.14f),
+                                modifier = Modifier.padding(top = 1.dp)
+                            ) {
+                                Text(
+                                    text = "PRO",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = pal.Navy,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, "Open Menu", tint = pal.TextPrimary)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = pal.Background
+                    ),
+                    actions = {
+                        IconButton(onClick = {
+                            val nextMode = when (themeMode) {
+                                "system" -> "light"
+                                "light" -> "dark"
+                                else -> "system"
+                            }
+                            onThemeModeChange(nextMode)
+                        }) {
+                            val icon = when (themeMode) {
+                                "light" -> Icons.Default.LightMode
+                                "dark" -> Icons.Default.DarkMode
+                                else -> Icons.Default.BrightnessAuto
+                            }
+                            Icon(icon, "Toggle Theme", tint = pal.TextPrimary)
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = pal.Background
-                ),
-                actions = {
-                    // Scheduled scan reminders
-                    IconButton(onClick = { showReminderDialog = true }) {
-                        Icon(Icons.Default.Notifications, "Scan Reminders", tint = pal.TextPrimary)
-                    }
-                    // Theme switcher
-                    IconButton(onClick = {
-                        val nextMode = when (themeMode) {
-                            "system" -> "light"
-                            "light" -> "dark"
-                            else -> "system"
-                        }
-                        onThemeModeChange(nextMode)
-                    }) {
-                        val icon = when (themeMode) {
-                            "light" -> Icons.Default.LightMode
-                            "dark" -> Icons.Default.DarkMode
-                            else -> Icons.Default.BrightnessAuto
-                        }
-                        Icon(icon, "Theme: $themeMode", tint = pal.TextPrimary)
-                    }
-                    // Recycle bin icon
-                    IconButton(onClick = { screen = Screen.RecycleBin }) {
-                        Icon(Icons.Default.Delete, "Recycle Bin", tint = pal.TextPrimary)
-                    }
-                    // App manager icon
-                    IconButton(onClick = { screen = Screen.AppCache }) {
-                        Icon(Icons.Outlined.Apps, "App Manager", tint = pal.TextPrimary)
-                    }
-                }
-            )
-        }
-    ) { padValues ->
-        Box(Modifier.fillMaxSize().padding(padValues)) {
-            if (!hasAccess) {
-                PermissionCard(onGrant = onGrant)
-            } else {
-                Column(Modifier.fillMaxSize()) {
+                )
+            }
+        ) { padValues ->
+            Box(Modifier.fillMaxSize().padding(padValues)) {
+                if (!hasAccess) {
+                    PermissionCard(onGrant = onGrant)
+                } else {
+                    Column(Modifier.fillMaxSize()) {
 
-                    // ── Pinned Category Tabs (when scan has completed) ────
-                    if (sc != null) {
-                        ScrollableTabRow(
-                            selectedTabIndex = tabIndex,
-                            edgePadding = 12.dp,
-                            containerColor = pal.Background,
-                            contentColor = pal.Navy,
-                            divider = { HorizontalDivider(color = pal.DividerColor.copy(0.6f)) }
-                        ) {
-                            TABS.forEachIndexed { i, t ->
-                                Tab(
-                                    selected = tabIndex == i,
-                                    onClick  = { tabIndex = i; query = "" },
-                                    text = {
-                                        Text(
-                                            if (i == 0) t else "$t (${tabCounts[t] ?: 0})",
-                                            fontSize   = 12.sp, maxLines = 1,
-                                            fontWeight = if (tabIndex == i) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (tabIndex == i) pal.Navy else pal.TextSecond
-                                        )
-                                    }
+                        // ── Pinned Category Tabs (when scan has completed) ────
+                        if (sc != null) {
+                            ScrollableTabRow(
+                                selectedTabIndex = tabIndex,
+                                edgePadding = 12.dp,
+                                containerColor = pal.Background,
+                                contentColor = pal.Navy,
+                                divider = { HorizontalDivider(color = pal.DividerColor.copy(0.6f)) }
+                            ) {
+                                TABS.forEachIndexed { i, t ->
+                                    Tab(
+                                        selected = tabIndex == i,
+                                        onClick  = { tabIndex = i; query = "" },
+                                        text = {
+                                            Text(
+                                                if (i == 0) t else "$t (${tabCounts[t] ?: 0})",
+                                                fontSize   = 12.sp, maxLines = 1,
+                                                fontWeight = if (tabIndex == i) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (tabIndex == i) pal.Navy else pal.TextSecond
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+
+                            // ── Pinned Search + Sort Row ───────────────────────────
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment     = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = query, onValueChange = { query = it },
+                                    placeholder  = { Text("Search files…", fontSize = 12.sp) },
+                                    singleLine   = true,
+                                    leadingIcon  = { Icon(Icons.Default.Search, null, Modifier.size(16.dp)) },
+                                    trailingIcon = {
+                                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) {
+                                            Icon(Icons.Default.Close, null, Modifier.size(14.dp))
+                                        }
+                                    },
+                                    shape    = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f).height(48.dp),
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+                                )
+                                FilterChip(
+                                    selected = true,
+                                    onClick  = { sortIndex = (sortIndex + 1) % SORTS.size },
+                                    label    = { Text(SORTS[sortIndex], fontSize = 11.sp) },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null, Modifier.size(14.dp)) }
                                 )
                             }
                         }
 
-                        // ── Pinned Search + Sort Row ───────────────────────────
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment     = Alignment.CenterVertically
+                        // ── Main Scrollable Area ────────────────────────────────
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(bottom = if (selected.isNotEmpty()) 100.dp else 24.dp)
                         ) {
-                            OutlinedTextField(
-                                value = query, onValueChange = { query = it },
-                                placeholder  = { Text("Search files…", fontSize = 12.sp) },
-                                singleLine   = true,
-                                leadingIcon  = { Icon(Icons.Default.Search, null, Modifier.size(16.dp)) },
-                                trailingIcon = {
-                                    if (query.isNotEmpty()) IconButton(onClick = { query = "" }) {
-                                        Icon(Icons.Default.Close, null, Modifier.size(14.dp))
-                                    }
-                                },
-                                shape    = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f).height(48.dp),
-                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
-                            )
-                            FilterChip(
-                                selected = true,
-                                onClick  = { sortIndex = (sortIndex + 1) % SORTS.size },
-                                label    = { Text(SORTS[sortIndex], fontSize = 11.sp) },
-                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null, Modifier.size(14.dp)) }
-                            )
-                        }
-                    }
+                            // 1. Scrollable Dashboard Card (Meters + Rescan + Chart)
+                            item {
+                                Card(
+                                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                                    shape     = RoundedCornerShape(18.dp),
+                                    colors    = CardDefaults.cardColors(containerColor = pal.CardBg),
+                                    elevation = CardDefaults.cardElevation(2.dp),
+                                    border    = BorderStroke(1.dp, pal.DividerColor.copy(0.5f))
+                                ) {
+                                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                        for ((path, total, free) in meters) {
+                                            StorageBar(
+                                                label = if (path == primaryPath) "Internal Storage" else "SD Card Storage",
+                                                used  = total - free, total = total
+                                            )
+                                        }
 
-                    // ── Main Scrollable Area ────────────────────────────────
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(bottom = if (selected.isNotEmpty()) 100.dp else 24.dp)
-                    ) {
-                        // 1. Scrollable Dashboard Card (Meters + Rescan + Chart)
-                        item {
-                            Card(
-                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                                shape     = RoundedCornerShape(18.dp),
-                                colors    = CardDefaults.cardColors(containerColor = pal.CardBg),
-                                elevation = CardDefaults.cardElevation(2.dp),
-                                border    = BorderStroke(1.dp, pal.DividerColor.copy(0.5f))
-                            ) {
-                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    for ((path, total, free) in meters) {
-                                        StorageBar(
-                                            label = if (path == primaryPath) "📱 Phone Storage" else "💾 SD Card",
-                                            used  = total - free, total = total
-                                        )
-                                    }
-
-                                    // Scan / Rescan Trigger Button
-                                    Button(
-                                        enabled  = !scanning,
-                                        onClick  = {
-                                            scope.launch {
-                                                scanning = true; selected = emptySet(); feedbackMsg = ""
-                                                try {
-                                                    scanResult = withContext(Dispatchers.IO) { scan(roots) { statusMsg = it } }
-                                                    curDir     = if (roots.size == 1) roots[0].path else ""
-                                                } catch (e: Exception) {
-                                                    feedbackMsg = "Scan failed: ${e.message}"; feedbackOk = false
+                                        // Primary Scan / Rescan Trigger Button
+                                        Button(
+                                            enabled  = !scanning,
+                                            onClick  = {
+                                                scope.launch {
+                                                    scanning = true; selected = emptySet(); feedbackMsg = ""
+                                                    try {
+                                                        scanResult = withContext(Dispatchers.IO) { scan(roots) { statusMsg = it } }
+                                                        curDir     = if (roots.size == 1) roots[0].path else ""
+                                                    } catch (e: Exception) {
+                                                        feedbackMsg = "Scan failed: ${e.message}"; feedbackOk = false
+                                                    }
+                                                    scanning = false; statusMsg = ""; tick++
                                                 }
-                                                scanning = false; statusMsg = ""; tick++
-                                            }
-                                        },
-                                        shape    = RoundedCornerShape(12.dp),
-                                        colors   = ButtonDefaults.buttonColors(containerColor = pal.Navy),
-                                        modifier = Modifier.fillMaxWidth().height(44.dp)
-                                    ) {
-                                        if (scanning) CircularProgressIndicator(Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
-                                        else Icon(Icons.Default.Search, null, Modifier.size(18.dp))
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(
-                                            when { scanning -> "Scanning…"; sc == null -> "Scan Storage"; else -> "Rescan Storage" },
-                                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
-
-                                    // Chart toggle
-                                    if (sc != null) {
-                                        TextButton(
-                                            onClick = { showChart = !showChart },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            contentPadding = PaddingValues(0.dp)
+                                            },
+                                            shape    = RoundedCornerShape(14.dp),
+                                            colors   = ButtonDefaults.buttonColors(containerColor = pal.Navy),
+                                            modifier = Modifier.fillMaxWidth().height(48.dp)
                                         ) {
-                                            Icon(
-                                                if (showChart) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                                null, Modifier.size(16.dp), tint = pal.AccentDark
-                                            )
-                                            Spacer(Modifier.width(4.dp))
+                                            if (scanning) {
+                                                CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                                            } else {
+                                                Icon(Icons.Default.CleaningServices, null, Modifier.size(20.dp))
+                                            }
+                                            Spacer(Modifier.width(8.dp))
                                             Text(
-                                                if (showChart) "Hide breakdown" else "Show storage breakdown",
-                                                fontSize = 12.sp, color = pal.AccentDark
+                                                when { scanning -> "Scanning Storage…"; sc == null -> "Scan Storage"; else -> "Rescan Storage" },
+                                                fontSize = 14.sp, fontWeight = FontWeight.Bold
                                             )
                                         }
-                                        AnimatedVisibility(showChart) {
-                                            StoragePieChart(
-                                                kindBytes  = kindBytes,
-                                                totalBytes = sc.files.sumOf { it.size },
-                                                modifier   = Modifier.fillMaxWidth().padding(top = 8.dp)
-                                            )
+
+                                        // Chart toggle
+                                        if (sc != null) {
+                                            TextButton(
+                                                onClick = { showChart = !showChart },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Icon(
+                                                    if (showChart) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                                    null, Modifier.size(16.dp), tint = pal.AccentDark
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    if (showChart) "Hide breakdown chart" else "View storage breakdown chart",
+                                                    fontSize = 12.sp, color = pal.AccentDark, fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                            AnimatedVisibility(showChart) {
+                                                StoragePieChart(
+                                                    kindBytes  = kindBytes,
+                                                    totalBytes = sc.files.sumOf { it.size },
+                                                    modifier   = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // 2. Scanning Progress Banner
-                        if (scanning) {
-                            item {
-                                Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                                    LinearProgressIndicator(Modifier.fillMaxWidth(), color = pal.Accent)
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(statusMsg, fontSize = 12.sp, color = pal.TextSecond)
+                            // 2. Scanning Progress Banner
+                            if (scanning) {
+                                item {
+                                    Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                                        LinearProgressIndicator(Modifier.fillMaxWidth(), color = pal.Accent)
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(statusMsg, fontSize = 12.sp, color = pal.TextSecond)
+                                    }
                                 }
                             }
-                        }
 
-                        // 3. Feedback Banner
-                        if (feedbackMsg.isNotEmpty()) {
-                            item {
-                                FeedbackBanner(feedbackMsg, feedbackOk) { feedbackMsg = "" }
-                            }
-                        }
-
-                        // 4. Scan Summary Stats
-                        if (sc != null) {
-                            item {
-                                ScanSummaryCard(sc, kindBytes)
+                            // 3. Feedback Banner
+                            if (feedbackMsg.isNotEmpty()) {
+                                item {
+                                    FeedbackBanner(feedbackMsg, feedbackOk) { feedbackMsg = "" }
+                                }
                             }
 
-                            // 5. Folder Breadcrumb
-                            if (tabIndex == 0) {
+                            // 4. Scan Summary Stats
+                            if (sc != null) {
+                                item {
+                                    ScanSummaryCard(sc, kindBytes)
+                                }
+
+                                // 5. Folder Breadcrumb
+                                if (tabIndex == 0) {
+                                    item {
+                                        Row(
+                                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            if (canGoUp) {
+                                                IconButton(onClick = { goUp() }, Modifier.size(28.dp)) {
+                                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Go up", Modifier.size(16.dp), tint = pal.Navy)
+                                                }
+                                            }
+                                            Text(
+                                                if (curDir.isEmpty()) "Storage root"
+                                                else curDir.removePrefix("/storage/emulated/0").ifEmpty { "/" },
+                                                fontSize = 11.sp, color = pal.TextSecond,
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // 6. Count and Select-all bar
                                 item {
                                     Row(
                                         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment     = Alignment.CenterVertically
                                     ) {
-                                        if (canGoUp) {
-                                            IconButton(onClick = { goUp() }, Modifier.size(28.dp)) {
-                                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Go up", Modifier.size(16.dp), tint = pal.Navy)
+                                        Text(
+                                            "${shown.size} items  •  ${fmt(shown.sumOf { it.size })}",
+                                            fontSize = 11.sp, color = pal.TextSecond, fontWeight = FontWeight.Medium
+                                        )
+                                        Row {
+                                            TextButton(
+                                                onClick = {
+                                                    val paths = shown.map { it.path }
+                                                    selected = if (paths.isNotEmpty() && paths.all { it in selected })
+                                                        selected - paths.toSet() else selected + paths.toSet()
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 6.dp)
+                                            ) { Text("Select all", fontSize = 11.sp, color = pal.Navy) }
+                                            if (selected.isNotEmpty()) {
+                                                TextButton(
+                                                    onClick = { selected = emptySet() },
+                                                    contentPadding = PaddingValues(horizontal = 6.dp)
+                                                ) { Text("Clear", fontSize = 11.sp, color = pal.Danger) }
                                             }
                                         }
-                                        Text(
-                                            if (curDir.isEmpty()) "Storage root"
-                                            else curDir.removePrefix("/storage/emulated/0").ifEmpty { "/" },
-                                            fontSize = 11.sp, color = pal.TextSecond,
-                                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
+                                    }
+                                }
+                            } else if (!scanning) {
+                                item { EmptyState() }
+                            }
+
+                            // 7. File List Items
+                            if (sc != null) {
+                                if (shown.isEmpty()) {
+                                    item {
+                                        Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Icon(
+                                                    Icons.Default.CheckCircleOutline,
+                                                    null,
+                                                    tint = pal.Success,
+                                                    modifier = Modifier.size(44.dp)
+                                                )
+                                                Spacer(Modifier.height(10.dp))
+                                                Text(
+                                                    "Clean & Clear\nNo files found in this category.",
+                                                    fontSize = 14.sp,
+                                                    color = pal.TextSecond,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    items(shown, key = { it.path }) { item ->
+                                        val isDup = item.path in sc.duplicates
+                                        FileRow(
+                                            item       = item,
+                                            isSelected = item.path in selected,
+                                            maxSize    = maxSize,
+                                            showBar    = tabIndex == 0,
+                                            isDup      = isDup,
+                                            onClick    = {
+                                                when {
+                                                    // Directory in folder view → navigate inside
+                                                    item.isDir && tabIndex == 0 -> curDir = item.path
+                                                    // Duplicates tab → open side-by-side compare sheet
+                                                    isDup && tabIndex == 3 -> comparingItem = item
+                                                    // Any other file → open rich preview dialog so user can see it!
+                                                    else -> previewItem = item
+                                                }
+                                            },
+                                            onCheck = {
+                                                selected = if (item.path in selected)
+                                                    selected - item.path else selected + item.path
+                                            }
+                                        )
+                                        HorizontalDivider(
+                                            color = pal.DividerColor.copy(0.4f),
+                                            thickness = 0.5.dp,
+                                            modifier = Modifier.padding(start = 72.dp)
                                         )
                                     }
-                                }
-                            }
-
-                            // 6. Count and Select-all bar
-                            item {
-                                Row(
-                                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment     = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "${shown.size} items  •  ${fmt(shown.sumOf { it.size })}",
-                                        fontSize = 11.sp, color = pal.TextSecond, fontWeight = FontWeight.Medium
-                                    )
-                                    Row {
-                                        TextButton(
-                                            onClick = {
-                                                val paths = shown.map { it.path }
-                                                selected = if (paths.isNotEmpty() && paths.all { it in selected })
-                                                    selected - paths.toSet() else selected + paths.toSet()
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 6.dp)
-                                        ) { Text("Select all", fontSize = 11.sp, color = pal.Navy) }
-                                        if (selected.isNotEmpty()) {
-                                            TextButton(
-                                                onClick = { selected = emptySet() },
-                                                contentPadding = PaddingValues(horizontal = 6.dp)
-                                            ) { Text("Clear", fontSize = 11.sp, color = pal.Danger) }
-                                        }
-                                    }
-                                }
-                            }
-                        } else if (!scanning) {
-                            item { EmptyState() }
-                        }
-
-                        // 7. File List Items
-                        if (sc != null) {
-                            if (shown.isEmpty()) {
-                                item {
-                                    Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text("🎉", fontSize = 36.sp)
-                                            Spacer(Modifier.height(8.dp))
-                                            Text(
-                                                "Clean & Clear!\nNo files found in this category.",
-                                                fontSize = 14.sp,
-                                                color = pal.TextSecond,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    }
-                                }
-                            } else {
-                                items(shown, key = { it.path }) { item ->
-                                    val isDup = item.path in sc.duplicates
-                                    FileRow(
-                                        item       = item,
-                                        isSelected = item.path in selected,
-                                        maxSize    = maxSize,
-                                        showBar    = tabIndex == 0,
-                                        isDup      = isDup,
-                                        onClick    = {
-                                            when {
-                                                // Directory in folder view → navigate inside
-                                                item.isDir && tabIndex == 0 -> curDir = item.path
-                                                // Duplicates tab → open side-by-side compare sheet
-                                                isDup && tabIndex == 3 -> comparingItem = item
-                                                // Any other file → open rich preview dialog so user can see it!
-                                                else -> previewItem = item
-                                            }
-                                        },
-                                        onCheck = {
-                                            selected = if (item.path in selected)
-                                                selected - item.path else selected + item.path
-                                        }
-                                    )
-                                    HorizontalDivider(
-                                        color = pal.DividerColor.copy(0.4f),
-                                        thickness = 0.5.dp,
-                                        modifier = Modifier.padding(start = 72.dp)
-                                    )
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            // ── Floating Selection Action Bar (Glassmorphic Pill) ────────
-            AnimatedVisibility(
-                visible = selected.isNotEmpty(),
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    color = pal.CardBg,
-                    shadowElevation = 14.dp,
-                    border = BorderStroke(1.dp, pal.GlowIndigo.copy(0.35f))
+                // ── Floating Selection Action Bar (Glassmorphic Pill) ────────
+                AnimatedVisibility(
+                    visible = selected.isNotEmpty(),
+                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
-                    Row(
-                        Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        color = pal.CardBg,
+                        shadowElevation = 14.dp,
+                        border = BorderStroke(1.dp, pal.GlowIndigo.copy(0.35f))
                     ) {
-                        Column {
-                            Text(
-                                "${selected.size} selected",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = pal.TextPrimary
-                            )
-                            Text(
-                                fmt(selInfo.second),
-                                fontSize = 11.sp,
-                                color = pal.AccentDark,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            TextButton(
-                                onClick = { selected = emptySet() },
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) {
-                                Text("Clear", color = pal.TextSecond, fontSize = 12.sp)
+                            Column {
+                                Text(
+                                    "${selected.size} selected",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = pal.TextPrimary
+                                )
+                                Text(
+                                    fmt(selInfo.second),
+                                    fontSize = 11.sp,
+                                    color = pal.AccentDark,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
 
-                            // Move to Trash button
-                            OutlinedButton(
-                                onClick = {
-                                    scope.launch {
-                                        scanning = true; statusMsg = "Moving to Recycle Bin…"
-                                        var moved = 0; var fail = 0
-                                        withContext(Dispatchers.IO) {
-                                            for (path in selected) {
-                                                if (RecycleBin.moveToTrash(File(path))) moved++ else fail++
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(
+                                    onClick = { selected = emptySet() },
+                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                ) {
+                                    Text("Clear", color = pal.TextSecond, fontSize = 12.sp)
+                                }
+
+                                // Move to Trash button
+                                OutlinedButton(
+                                    onClick = {
+                                        scope.launch {
+                                            scanning = true; statusMsg = "Moving to Recycle Bin…"
+                                            var moved = 0; var fail = 0
+                                            withContext(Dispatchers.IO) {
+                                                for (path in selected) {
+                                                    if (RecycleBin.moveToTrash(File(path))) moved++ else fail++
+                                                }
+                                                val tset = selected
+                                                val nf = sc!!.files.filter { it.path !in tset || File(it.path).exists() }
+                                                val ne = sc.emptyDirs.filter { it.path !in tset || File(it.path).exists() }
+                                                val pres = nf.mapTo(HashSet()) { it.path }
+                                                val newGrp = sc.duplicateGroups.map { g -> g.filter { it.path in pres } }.filter { it.size > 1 }
+                                                scanResult = ScanResult(nf, ne, sc.duplicates.filter { it in pres }.toSet(), newGrp)
                                             }
-                                            val tset = selected
-                                            val nf = sc!!.files.filter { it.path !in tset || File(it.path).exists() }
-                                            val ne = sc.emptyDirs.filter { it.path !in tset || File(it.path).exists() }
-                                            val pres = nf.mapTo(HashSet()) { it.path }
-                                            val newGrp = sc.duplicateGroups.map { g -> g.filter { it.path in pres } }.filter { it.size > 1 }
-                                            scanResult = ScanResult(nf, ne, sc.duplicates.filter { it in pres }.toSet(), newGrp)
+                                            selected = emptySet()
+                                            feedbackOk = fail == 0
+                                            feedbackMsg = "Moved $moved items to Recycle Bin" + if (fail > 0) ". $fail failed." else ""
+                                            scanning = false; statusMsg = ""; tick++
                                         }
-                                        selected = emptySet()
-                                        feedbackOk = fail == 0
-                                        feedbackMsg = "🗑️ Moved $moved items to Recycle Bin" + if (fail > 0) ". $fail failed." else ""
-                                        scanning = false; statusMsg = ""; tick++
-                                    }
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = pal.TextPrimary),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Icon(Icons.Default.DeleteOutline, null, Modifier.size(15.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Trash", fontSize = 12.sp)
-                            }
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = pal.TextPrimary),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Default.DeleteOutline, null, Modifier.size(15.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Trash", fontSize = 12.sp)
+                                }
 
-                            // Permanent Secure Wipe Button
-                            Button(
-                                onClick = {
-                                    pendingMode = SecureDelete.Mode.SECURE_WIPE
-                                    showConfirm = true
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = pal.Danger),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Icon(Icons.Default.DeleteForever, null, Modifier.size(15.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Wipe", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                // Permanent Secure Wipe Button
+                                Button(
+                                    onClick = {
+                                        pendingMode = SecureDelete.Mode.SECURE_WIPE
+                                        showConfirm = true
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = pal.Danger),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Default.DeleteForever, null, Modifier.size(15.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Wipe", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
@@ -682,7 +708,7 @@ fun StorageCleanerApp(
                     }
                     if (ok) {
                         feedbackOk = true
-                        feedbackMsg = "🗑️ Moved to Recycle Bin: ${path.substringAfterLast('/')}"
+                        feedbackMsg = "Moved to Recycle Bin: ${path.substringAfterLast('/')}"
                         val nf = sc?.files?.filter { it.path != path } ?: emptyList()
                         val ne = sc?.emptyDirs?.filter { it.path != path } ?: emptyList()
                         val pres = nf.mapTo(HashSet()) { it.path }
@@ -744,7 +770,7 @@ fun StorageCleanerApp(
                             fontSize = 12.sp, color = pal.TextSecond
                         )
                     }
-                    Text("⚠️ Folders will be deleted with all their contents. This cannot be undone.", fontSize = 12.sp, color = pal.Warning)
+                    Text("Folders will be deleted with all their contents. This cannot be undone.", fontSize = 12.sp, color = pal.Warning)
                 }
             },
             dismissButton = { OutlinedButton(onClick = { showConfirm = false }) { Text("Cancel") } },
@@ -857,9 +883,11 @@ fun FileRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (item.isDir) {
                 Box(
-                    Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(pal.StorageFree),
+                    Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(pal.Navy.copy(0.12f)),
                     contentAlignment = Alignment.Center
-                ) { Text("📁", fontSize = 22.sp) }
+                ) {
+                    Icon(Icons.Default.Folder, null, tint = pal.Navy, modifier = Modifier.size(24.dp))
+                }
             } else {
                 FileThumbnail(item.path, item.kind, Modifier)
             }
@@ -943,7 +971,7 @@ fun PermissionCard(onGrant: () -> Unit) {
                     Modifier.size(68.dp).clip(CircleShape).background(pal.Navy.copy(0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("🛡️", fontSize = 36.sp)
+                    Icon(Icons.Default.Security, null, tint = pal.Navy, modifier = Modifier.size(36.dp))
                 }
                 Text("Permission Required", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = pal.TextPrimary)
                 Text(
@@ -967,20 +995,21 @@ fun PermissionCard(onGrant: () -> Unit) {
 
 @Composable
 fun EmptyState() {
+    val pal = appPalette()
     Box(Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 24.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                Modifier.size(80.dp).clip(CircleShape).background(appPalette().Navy.copy(0.1f)),
+                Modifier.size(80.dp).clip(CircleShape).background(pal.Navy.copy(0.1f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("🧹", fontSize = 40.sp)
+                Icon(Icons.Default.CleaningServices, null, tint = pal.Navy, modifier = Modifier.size(40.dp))
             }
             Spacer(Modifier.height(16.dp))
-            Text("Ready to Clean Your Storage", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = appPalette().TextPrimary)
+            Text("Ready to Clean Your Storage", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = pal.TextPrimary)
             Spacer(Modifier.height(8.dp))
             Text(
                 "Tap 'Scan Storage' above to discover duplicate photos, residual junk files, huge videos, and empty folders.",
-                fontSize = 13.sp, color = appPalette().TextSecond,
+                fontSize = 13.sp, color = pal.TextSecond,
                 textAlign = TextAlign.Center
             )
         }
@@ -997,22 +1026,23 @@ fun ScanSummaryCard(sc: ScanResult, kindBytes: LongArray) {
         elevation = CardDefaults.cardElevation(1.dp),
         border = BorderStroke(1.dp, pal.DividerColor.copy(0.4f))
     ) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceAround) {
-            SummaryStat("📁", "${sc.files.size}", "Files")
-            SummaryStat("📋", "${sc.duplicates.size}", "Duplicates")
-            SummaryStat("💾", fmt(sc.files.sumOf { it.size }), "Total")
-            SummaryStat("🗑️", "${sc.emptyDirs.size}", "Empty")
+        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceAround) {
+            SummaryStat(Icons.Default.Folder, "${sc.files.size}", "Files")
+            SummaryStat(Icons.Default.ContentCopy, "${sc.duplicates.size}", "Duplicates")
+            SummaryStat(Icons.Default.Storage, fmt(sc.files.sumOf { it.size }), "Total")
+            SummaryStat(Icons.Default.FolderOpen, "${sc.emptyDirs.size}", "Empty")
         }
     }
 }
 
 @Composable
-fun SummaryStat(icon: String, value: String, label: String) {
+fun SummaryStat(icon: ImageVector, value: String, label: String) {
+    val pal = appPalette()
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(icon, fontSize = 16.sp)
-        Spacer(Modifier.height(2.dp))
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = appPalette().Navy)
-        Text(label, fontSize = 10.sp, color = appPalette().TextSecond)
+        Icon(icon, null, tint = pal.Navy, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.height(3.dp))
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = pal.TextPrimary)
+        Text(label, fontSize = 10.sp, color = pal.TextSecond)
     }
 }
 

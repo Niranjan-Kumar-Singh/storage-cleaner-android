@@ -242,23 +242,20 @@ fun FilePreviewDialog(
                                 verticalArrangement = Arrangement.Center,
                                 modifier = Modifier.padding(16.dp)
                             ) {
-                                val (icon, bgCol) = when (item.kind) {
-                                    KIND_APK -> "📦" to Color(0xFF689F38)
-                                    KIND_AUDIO -> "🎵" to Color(0xFF00897B)
-                                    KIND_VIDEO -> "🎬" to Color(0xFFE53935)
-                                    KIND_IMAGE -> "🖼️" to Color(0xFF1E88E5)
-                                    KIND_DOC -> "📄" to Color(0xFFFB8C00)
-                                    KIND_ARCHIVE -> "🗜️" to Color(0xFF8E24AA)
-                                    else -> "📁" to pal.NavyLight
-                                }
+                                val visual = getKindVisual(item.kind)
                                 Box(
                                     modifier = Modifier
                                         .size(72.dp)
                                         .clip(CircleShape)
-                                        .background(bgCol.copy(0.15f)),
+                                        .background(visual.container.copy(0.4f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(icon, fontSize = 34.sp)
+                                    Icon(
+                                        imageVector = visual.icon,
+                                        contentDescription = null,
+                                        tint = visual.tint,
+                                        modifier = Modifier.size(36.dp)
+                                    )
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 Text(
@@ -346,7 +343,7 @@ fun FilePreviewDialog(
                         ) {
                             Icon(Icons.Default.DeleteOutline, null, Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Move to Trash", fontSize = 12.sp)
+                            Text("Trash", fontSize = 13.sp)
                         }
 
                         // Secure Wipe (DoD 3-pass)
@@ -358,7 +355,7 @@ fun FilePreviewDialog(
                         ) {
                             Icon(Icons.Default.DeleteForever, null, Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Secure Wipe", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Secure Wipe", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

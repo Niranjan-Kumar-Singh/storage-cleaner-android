@@ -79,13 +79,13 @@ fun DuplicateCompareSheet(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 DupFileCard(
-                    label    = "📁 Original (oldest)",
+                    label    = "Original (Oldest)",
                     item     = original,
                     modifier = Modifier.weight(1f),
                     tint     = MaterialTheme.colorScheme.primary
                 )
                 DupFileCard(
-                    label    = "⚠️ Duplicate",
+                    label    = "Duplicate Copy",
                     item     = duplicate,
                     modifier = Modifier.weight(1f),
                     tint     = MaterialTheme.colorScheme.error

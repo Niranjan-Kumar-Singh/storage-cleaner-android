@@ -120,7 +120,7 @@ object ReminderManager {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_delete)
-            .setContentTitle("Storage Cleaner 🧹")
+            .setContentTitle("Storage Cleaner")
             .setContentText("It's time to scan your storage and remove duplicate or junk files.")
             .setStyle(
                 NotificationCompat.BigTextStyle()

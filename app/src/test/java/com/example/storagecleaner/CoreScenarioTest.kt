@@ -8,7 +8,6 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.RandomAccessFile
-import java.security.MessageDigest
 
 class CoreScenarioTest {
 
@@ -43,7 +42,7 @@ class CoreScenarioTest {
         assertFalse(JUNK_EXT.contains("pdf"))
     }
 
-    // ── Scenario 3: System Protected Paths Guard ─────────────────────────────
+    // ── Scenario 3: System Protected Paths & Path Traversal Security Guard ─────
     @Test
     fun testSystemProtectedPathsGuard() {
         assertTrue(isSystemPath("/storage/emulated/0/Android"))
@@ -54,6 +53,10 @@ class CoreScenarioTest {
         assertTrue(isSystemPath("/system"))
         assertTrue(isSystemPath("/proc"))
         assertTrue(isSystemPath("/sys"))
+
+        // Path traversal attack checks
+        assertTrue(isSystemPath("/system/bin/sh"))
+        assertTrue(isSystemPath("/data/local/tmp"))
 
         // User files must NOT be protected
         assertFalse(isSystemPath("/storage/emulated/0/DCIM/Camera/photo.jpg"))
@@ -121,7 +124,86 @@ class CoreScenarioTest {
         }
     }
 
-    // ── Scenario 5: DoD Secure Wipe Simulation ───────────────────────────────
+    // ── Scenario 5: Corrupted & Zero-Byte Files Resilience ────────────────────
+    @Test
+    fun testCorruptedAndZeroByteFiles() {
+        val root = tempFolder.newFolder("corrupt_test_root")
+
+        // 1. Zero-byte file
+        val zeroByte = File(root, "empty_file.dat").apply { createNewFile() }
+        assertEquals(0L, zeroByte.length())
+
+        // 2. Corrupt image file (truncated random bytes)
+        val corruptImg = File(root, "broken_photo.jpg").apply {
+            writeBytes(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0x00, 0x12, 0x43))
+        }
+
+        // 3. Scan must succeed without crashing or throwing
+        val result = scan(listOf(root)) { }
+        assertTrue(result.files.any { it.path == zeroByte.path })
+        assertTrue(result.files.any { it.path == corruptImg.path })
+    }
+
+    // ── Scenario 6: Special Characters & Unicode Filenames ────────────────────
+    @Test
+    fun testUnicodeAndSpecialCharacterFilenames() {
+        val root = tempFolder.newFolder("unicode_root")
+
+        // File with spaces and brackets
+        val fileSpaces = File(root, "My Vacation Photo (Copy 2).png").apply {
+            writeBytes(ByteArray(1024) { 1 })
+        }
+        // File with non-ASCII Cyrillic
+        val fileCyrillic = File(root, "отчет_за_квартал.pdf").apply {
+            writeBytes(ByteArray(1024) { 2 })
+        }
+        // File with Chinese characters
+        val fileChinese = File(root, "备份文件.zip").apply {
+            writeBytes(ByteArray(1024) { 3 })
+        }
+        // File with Hindi characters
+        val fileHindi = File(root, "सुरक्षा_दस्तावेज़.doc").apply {
+            writeBytes(ByteArray(1024) { 4 })
+        }
+
+        val result = scan(listOf(root)) { }
+        assertEquals(4, result.files.size)
+        assertTrue(result.files.any { it.path.contains("My Vacation Photo") })
+        assertTrue(result.files.any { it.path.contains("отчет_за_квартал") })
+        assertTrue(result.files.any { it.path.contains("备份文件") })
+        assertTrue(result.files.any { it.path.contains("सुरक्षा_दस्तावेज़") })
+    }
+
+    // ── Scenario 7: All 16 Category Tabs Filtering ────────────────────────────
+    @Test
+    fun testAllCategoryTabsFiltering() {
+        val root = tempFolder.newFolder("tabs_root")
+        val dcim = File(root, "DCIM/Screenshots").apply { mkdirs() }
+        val telegram = File(root, "Telegram/Telegram Video").apply { mkdirs() }
+        val downloads = File(root, "Download").apply { mkdirs() }
+
+        val shotImg = File(dcim, "Screenshot_2026.png").apply { writeBytes(ByteArray(1024)) }
+        val chatVid = File(telegram, "video_msg.mp4").apply { writeBytes(ByteArray(1024)) }
+        val docFile = File(downloads, "paper.pdf").apply { writeBytes(ByteArray(1024)) }
+        val apkFile = File(downloads, "app.apk").apply { writeBytes(ByteArray(1024)) }
+        val zipFile = File(downloads, "backup.zip").apply { writeBytes(ByteArray(1024)) }
+        val junkFile = File(downloads, "trash.tmp").apply { writeBytes(ByteArray(1024)) }
+
+        val result = scan(listOf(root)) { }
+
+        // Test each tab filter
+        assertEquals(result.files.size, listFor("All files", result).size)
+        assertTrue(listFor("Images", result).any { it.path == shotImg.path })
+        assertTrue(listFor("Videos", result).any { it.path == chatVid.path })
+        assertTrue(listFor("Docs", result).any { it.path == docFile.path })
+        assertTrue(listFor("APKs", result).any { it.path == apkFile.path })
+        assertTrue(listFor("Archives", result).any { it.path == zipFile.path })
+        assertTrue(listFor("Screenshots", result).any { it.path == shotImg.path })
+        assertTrue(listFor("Chat media", result).any { it.path == chatVid.path })
+        assertTrue(listFor("Junk files", result).any { it.path == junkFile.path })
+    }
+
+    // ── Scenario 8: DoD Secure Wipe Simulation ───────────────────────────────
     @Test
     fun testSecureWipeOverwritesData() {
         val testFile = tempFolder.newFile("sensitive_document.txt").apply {
@@ -172,7 +254,7 @@ class CoreScenarioTest {
         assertFalse("File must be deleted after secure wipe", File(origPath).exists())
     }
 
-    // ── Scenario 6: Format Helper ────────────────────────────────────────────
+    // ── Scenario 9: Format Helper ────────────────────────────────────────────
     @Test
     fun testByteFormatting() {
         assertEquals("0 B", fmt(0L))

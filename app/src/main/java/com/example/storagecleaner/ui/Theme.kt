@@ -29,26 +29,26 @@ data class AppPalette(
     val GlowIndigo: Color, val GlowCyan: Color
 )
 
-// ─── Light palette (Ultra Clean Porcelain & Royal Indigo) ─────────────────
+// ─── Light palette (Porcelain Slate & Precision Indigo) ───────────────────
 val LightPalette = AppPalette(
     Navy         = Color(0xFF4F46E5), NavyLight  = Color(0xFF6366F1), NavyDark = Color(0xFF3730A3),
-    Accent       = Color(0xFF06B6D4), AccentDark = Color(0xFF0891B2),
+    Accent       = Color(0xFF0891B2), AccentDark = Color(0xFF0E7490),
     Surface      = Color(0xFFFFFFFF), Background = Color(0xFFF8FAFC), CardBg  = Color(0xFFFFFFFF),
-    Danger       = Color(0xFFF43F5E), DangerLight= Color(0xFFFFE4E6), Warning = Color(0xFFF59E0B), Success = Color(0xFF10B981),
+    Danger       = Color(0xFFE11D48), DangerLight= Color(0xFFFFE4E6), Warning = Color(0xFFD97706), Success = Color(0xFF059669),
     TextPrimary  = Color(0xFF0F172A), TextSecond = Color(0xFF64748B), DividerColor = Color(0xFFE2E8F0),
-    StorageBar   = Color(0xFF4F46E5), StorageFree = Color(0xFFEEF2F6),
-    GlowIndigo   = Color(0xFF818CF8), GlowCyan   = Color(0xFF22D3EE)
+    StorageBar   = Color(0xFF4F46E5), StorageFree = Color(0xFFE2E8F0),
+    GlowIndigo   = Color(0xFF818CF8), GlowCyan   = Color(0xFF06B6D4)
 )
 
-// ─── Dark palette (Luxury Deep Space Obsidian & Cyber Indigo) ─────────────
+// ─── Dark palette (Obsidian Slate & Electric Blurple) ─────────────────────
 val DarkPalette = AppPalette(
-    Navy         = Color(0xFF6366F1), NavyLight  = Color(0xFF818CF8), NavyDark = Color(0xFF4338CA),
-    Accent       = Color(0xFF22D3EE), AccentDark = Color(0xFF06B6D4),
-    Surface      = Color(0xFF111827), Background = Color(0xFF090D16), CardBg  = Color(0xFF161F30),
-    Danger       = Color(0xFFFB7185), DangerLight= Color(0xFF4C0519), Warning = Color(0xFFFBBF24), Success = Color(0xFF34D399),
-    TextPrimary  = Color(0xFFF8FAFC), TextSecond = Color(0xFF94A3B8), DividerColor = Color(0xFF1F2937),
-    StorageBar   = Color(0xFF6366F1), StorageFree = Color(0xFF1F293D),
-    GlowIndigo   = Color(0xFFA5B4FC), GlowCyan   = Color(0xFF67E8F9)
+    Navy         = Color(0xFF6366F1), NavyLight  = Color(0xFF818CF8), NavyDark = Color(0xFF4F46E5),
+    Accent       = Color(0xFF06B6D4), AccentDark = Color(0xFF0891B2),
+    Surface      = Color(0xFF111726), Background = Color(0xFF0B0F17), CardBg  = Color(0xFF141C2E),
+    Danger       = Color(0xFFF43F5E), DangerLight= Color(0xFF3B0715), Warning = Color(0xFFF59E0B), Success = Color(0xFF10B981),
+    TextPrimary  = Color(0xFFF8FAFC), TextSecond = Color(0xFF94A3B8), DividerColor = Color(0xFF1E293B),
+    StorageBar   = Color(0xFF6366F1), StorageFree = Color(0xFF1E293B),
+    GlowIndigo   = Color(0xFFA5B4FC), GlowCyan   = Color(0xFF22D3EE)
 )
 
 /** Legacy singleton — kept for backward compatibility; resolves to LightPalette */
@@ -141,18 +141,18 @@ fun StorageBar(label: String, used: Long, total: Long, modifier: Modifier = Modi
         else      -> pal.Navy
     }
     Column(modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(label, fontSize = 13.sp, color = pal.TextPrimary, fontWeight = FontWeight.SemiBold)
-            Text("$pct% used", fontSize = 13.sp, color = barColor, fontWeight = FontWeight.Bold)
+            Text("$pct% used", fontSize = 12.sp, color = barColor, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(6.dp))
         Box(
-            Modifier.fillMaxWidth().height(10.dp)
-                .clip(RoundedCornerShape(5.dp)).background(pal.StorageFree)
+            Modifier.fillMaxWidth().height(8.dp)
+                .clip(RoundedCornerShape(4.dp)).background(pal.StorageFree)
         ) {
             Box(
                 Modifier.fillMaxHeight().fillMaxWidth(frac)
-                    .clip(RoundedCornerShape(5.dp)).background(barColor)
+                    .clip(RoundedCornerShape(4.dp)).background(barColor)
             )
         }
         Spacer(Modifier.height(4.dp))
@@ -168,7 +168,7 @@ fun StorageBar(label: String, used: Long, total: Long, modifier: Modifier = Modi
 fun ShimmerRow() {
     val transition = rememberInfiniteTransition(label = "shimmer")
     val alpha by transition.animateFloat(
-        initialValue = 0.25f, targetValue = 0.6f,
+        initialValue = 0.2f, targetValue = 0.5f,
         animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse),
         label = "alpha"
     )

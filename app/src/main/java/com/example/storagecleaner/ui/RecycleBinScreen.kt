@@ -1,17 +1,21 @@
 package com.example.storagecleaner.ui
 
 import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,7 +53,7 @@ fun RecycleBinScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Recycle Bin 🗑️", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text("Recycle Bin", fontSize = 17.sp, fontWeight = FontWeight.Bold)
                         Text(
                             "${items.size} items  •  ${fmt(RecycleBin.totalSize())}",
                             fontSize = 11.sp,
@@ -59,7 +63,7 @@ fun RecycleBinScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
                 actions = {
@@ -104,12 +108,25 @@ fun RecycleBinScreen(
                 items.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("🗑️", fontSize = 56.sp)
-                            Spacer(Modifier.height(12.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            Spacer(Modifier.height(14.dp))
                             Text("Recycle Bin is empty", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                "Files you send to trash will appear here.\nYou can restore or permanently delete them.",
+                                "Files moved to trash will appear here.\nYou can restore or permanently wipe them.",
                                 fontSize = 13.sp,
                                 color    = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -206,7 +223,20 @@ private fun TrashItemRow(item: TrashItem, onRestore: () -> Unit, onDelete: () ->
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(if (item.isDir) "📁" else "📄", fontSize = 24.sp)
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (item.isDir) Icons.Default.Folder else Icons.Default.Description,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp)
+            )
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(

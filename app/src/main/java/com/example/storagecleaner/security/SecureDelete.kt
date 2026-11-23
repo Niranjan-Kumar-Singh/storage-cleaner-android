@@ -111,7 +111,7 @@ object SecureDelete {
             val f  = File(path)
             val sz = if (f.isDirectory) (dirSizes[path] ?: 0L) else f.length()
 
-            onProgress(if (mode == Mode.SECURE_WIPE) "🔒 Wiping ${f.name}…" else "🗑️ Deleting ${f.name}…")
+            onProgress(if (mode == Mode.SECURE_WIPE) "Wiping ${f.name}…" else "Deleting ${f.name}…")
 
             val (ok, wasSecure) = when (mode) {
                 Mode.SECURE_WIPE -> {
