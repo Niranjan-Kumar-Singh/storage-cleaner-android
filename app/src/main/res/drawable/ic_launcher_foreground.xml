@@ -1,55 +1,72 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- App icon: broom + shield — clean & secure concept -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Shield background -->
+    <!-- Outer Shield Glow / Rim -->
     <path
-        android:fillColor="#1A237E"
-        android:pathData="M54,10 L80,22 L80,46 C80,62 68,74 54,80 C40,74 28,62 28,46 L28,22 Z"/>
+        android:fillColor="#1E1B4B"
+        android:strokeColor="#6366F1"
+        android:strokeWidth="1.5"
+        android:pathData="M54,18 L80,29 C80,52 68,75 54,88 C40,75 28,52 28,29 Z"/>
 
-    <!-- Shield highlight -->
+    <!-- Left Shield Facet (Deep Shadow Indigo) -->
     <path
-        android:fillColor="#3949AB"
-        android:pathData="M54,15 L76,26 L76,46 C76,60 65,71 54,76 L54,15 Z"/>
+        android:fillColor="#312E81"
+        android:pathData="M54,20 L29.5,30 C29.5,51.5 40.8,73.5 54,86.5 Z"/>
 
-    <!-- Broom stick -->
+    <!-- Right Shield Facet (Electric Indigo) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:strokeColor="#E0E0E0"
-        android:strokeWidth="0.5"
-        android:pathData="M42,65 L62,38 L65,41 L45,68 Z"/>
+        android:fillColor="#4F46E5"
+        android:pathData="M54,20 L78.5,30 C78.5,51.5 67.2,73.5 54,86.5 Z"/>
 
-    <!-- Broom head -->
+    <!-- Top Shield Highlight Crest -->
     <path
-        android:fillColor="#00BCD4"
-        android:pathData="M38,70 C36,66 38,62 42,60 L50,58 L52,68 C49,72 44,74 38,70 Z"/>
+        android:fillColor="#818CF8"
+        android:strokeAlpha="0.8"
+        android:pathData="M54,20 L78.5,30 L66,35 L54,27 L42,35 L29.5,30 Z"/>
 
-    <!-- Sparkle diamond 1 -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M66,31 L68,34 L66,37 L64,34 Z"/>
-
-    <!-- Sparkle diamond 2 -->
-    <path
-        android:fillColor="#FFD54F"
-        android:pathData="M72,40 L74,42 L72,44 L70,42 Z"/>
-
-    <!-- Sparkle diamond 3 -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M68,48 L70,50 L68,52 L66,50 Z"/>
-
-    <!-- Checkmark on shield (security) -->
+    <!-- Supersonic Clean Sweep Arc (Cyber Cyan Energy Ring) -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M46,52 L51,58 L62,44"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="3"
+        android:strokeColor="#06B6D4"
+        android:strokeWidth="4"
         android:strokeLineCap="round"
-        android:strokeLineJoin="round"/>
+        android:pathData="M24,68 C28,78 42,82 58,74 C72,66 84,48 82,36 C80,26 70,26 62,32 C52,40 40,60 54,70"/>
+
+    <!-- Inner Core Cyan Glow Beam -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#22D3EE"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M30,65 C38,72 52,70 66,60 C78,50 82,38 78,34"/>
+
+    <!-- Radiant Prism Sparkle Core (White & Cyan Star) -->
+    <!-- Vertical flare -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,36 C54.8,45 56,48 64,52 C56,56 54.8,59 54,68 C53.2,59 52,56 44,52 C52,48 53.2,45 54,36 Z"/>
+
+    <!-- Center Bright Core -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M54,48 L58,52 L54,56 L50,52 Z"/>
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,50 L56,52 L54,54 L52,52 Z"/>
+
+    <!-- Accent Diamond Sparkle 1 (Top Right) -->
+    <path
+        android:fillColor="#FACC15"
+        android:pathData="M74,28 L76.5,31 L74,34 L71.5,31 Z"/>
+
+    <!-- Accent Diamond Sparkle 2 (Bottom Left) -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M34,60 L36,62.5 L34,65 L32,62.5 Z"/>
 
 </vector>

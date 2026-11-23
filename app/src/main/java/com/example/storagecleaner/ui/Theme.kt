@@ -25,27 +25,30 @@ data class AppPalette(
     val Surface: Color, val Background: Color, val CardBg: Color,
     val Danger: Color, val DangerLight: Color, val Warning: Color, val Success: Color,
     val TextPrimary: Color, val TextSecond: Color, val DividerColor: Color,
-    val StorageBar: Color, val StorageFree: Color
+    val StorageBar: Color, val StorageFree: Color,
+    val GlowIndigo: Color, val GlowCyan: Color
 )
 
-// ─── Light palette ────────────────────────────────────────────────────────
+// ─── Light palette (Ultra Clean Porcelain & Royal Indigo) ─────────────────
 val LightPalette = AppPalette(
-    Navy         = Color(0xFF1A237E), NavyLight  = Color(0xFF3949AB), NavyDark = Color(0xFF0D1B6E),
-    Accent       = Color(0xFF00BCD4), AccentDark = Color(0xFF0097A7),
-    Surface      = Color(0xFFFFFFFF), Background = Color(0xFFF5F7FA), CardBg  = Color(0xFFFFFFFF),
-    Danger       = Color(0xFFD32F2F), DangerLight= Color(0xFFFFCDD2), Warning = Color(0xFFF57F17), Success = Color(0xFF2E7D32),
-    TextPrimary  = Color(0xFF1A1A2E), TextSecond = Color(0xFF6B7280), DividerColor = Color(0xFFE5E7EB),
-    StorageBar   = Color(0xFF3949AB), StorageFree = Color(0xFFE8EAF6)
+    Navy         = Color(0xFF4F46E5), NavyLight  = Color(0xFF6366F1), NavyDark = Color(0xFF3730A3),
+    Accent       = Color(0xFF06B6D4), AccentDark = Color(0xFF0891B2),
+    Surface      = Color(0xFFFFFFFF), Background = Color(0xFFF8FAFC), CardBg  = Color(0xFFFFFFFF),
+    Danger       = Color(0xFFF43F5E), DangerLight= Color(0xFFFFE4E6), Warning = Color(0xFFF59E0B), Success = Color(0xFF10B981),
+    TextPrimary  = Color(0xFF0F172A), TextSecond = Color(0xFF64748B), DividerColor = Color(0xFFE2E8F0),
+    StorageBar   = Color(0xFF4F46E5), StorageFree = Color(0xFFEEF2F6),
+    GlowIndigo   = Color(0xFF818CF8), GlowCyan   = Color(0xFF22D3EE)
 )
 
-// ─── Dark palette ─────────────────────────────────────────────────────────
+// ─── Dark palette (Luxury Deep Space Obsidian & Cyber Indigo) ─────────────
 val DarkPalette = AppPalette(
-    Navy         = Color(0xFF7986CB), NavyLight  = Color(0xFF5C6BC0), NavyDark = Color(0xFF3949AB),
-    Accent       = Color(0xFF4DD0E1), AccentDark = Color(0xFF00ACC1),
-    Surface      = Color(0xFF1A1E2E), Background = Color(0xFF0F1119), CardBg  = Color(0xFF1E2234),
-    Danger       = Color(0xFFEF5350), DangerLight= Color(0xFF4A1515), Warning = Color(0xFFFFB74D), Success = Color(0xFF66BB6A),
-    TextPrimary  = Color(0xFFE8EAF6), TextSecond = Color(0xFF9BA3B6), DividerColor = Color(0xFF2D3250),
-    StorageBar   = Color(0xFF7986CB), StorageFree = Color(0xFF1E2234)
+    Navy         = Color(0xFF6366F1), NavyLight  = Color(0xFF818CF8), NavyDark = Color(0xFF4338CA),
+    Accent       = Color(0xFF22D3EE), AccentDark = Color(0xFF06B6D4),
+    Surface      = Color(0xFF111827), Background = Color(0xFF090D16), CardBg  = Color(0xFF161F30),
+    Danger       = Color(0xFFFB7185), DangerLight= Color(0xFF4C0519), Warning = Color(0xFFFBBF24), Success = Color(0xFF34D399),
+    TextPrimary  = Color(0xFFF8FAFC), TextSecond = Color(0xFF94A3B8), DividerColor = Color(0xFF1F2937),
+    StorageBar   = Color(0xFF6366F1), StorageFree = Color(0xFF1F293D),
+    GlowIndigo   = Color(0xFFA5B4FC), GlowCyan   = Color(0xFF67E8F9)
 )
 
 /** Legacy singleton — kept for backward compatibility; resolves to LightPalette */
@@ -75,6 +78,14 @@ object AppColors {
     )
 }
 
+fun primaryGradient(pal: AppPalette) = Brush.horizontalGradient(
+    colors = listOf(pal.NavyDark, pal.Navy)
+)
+
+fun cyanIndigoGradient(pal: AppPalette) = Brush.horizontalGradient(
+    colors = listOf(pal.Navy, pal.Accent)
+)
+
 /** Returns the correct palette for the current system theme. */
 @Composable
 fun appPalette(): AppPalette = if (isSystemInDarkTheme()) DarkPalette else LightPalette
@@ -83,15 +94,15 @@ fun appPalette(): AppPalette = if (isSystemInDarkTheme()) DarkPalette else Light
 fun lightAppColorScheme() = lightColorScheme(
     primary            = LightPalette.Navy,
     onPrimary          = Color.White,
-    primaryContainer   = Color(0xFFE8EAF6),
+    primaryContainer   = Color(0xFFEEF2FF),
     onPrimaryContainer = LightPalette.NavyDark,
     secondary          = LightPalette.Accent,
     onSecondary        = Color.White,
-    secondaryContainer = Color(0xFFE0F7FA),
+    secondaryContainer = Color(0xFFE0F2FE),
     onSecondaryContainer = LightPalette.AccentDark,
     surface            = LightPalette.Surface,
     onSurface          = LightPalette.TextPrimary,
-    surfaceVariant     = Color(0xFFF0F2FF),
+    surfaceVariant     = Color(0xFFF1F5F9),
     onSurfaceVariant   = LightPalette.TextSecond,
     background         = LightPalette.Background,
     onBackground       = LightPalette.TextPrimary,
@@ -102,15 +113,15 @@ fun lightAppColorScheme() = lightColorScheme(
 fun darkAppColorScheme() = darkColorScheme(
     primary            = DarkPalette.Navy,
     onPrimary          = Color.White,
-    primaryContainer   = Color(0xFF1A237E),
-    onPrimaryContainer = Color(0xFFE8EAF6),
+    primaryContainer   = Color(0xFF1E1B4B),
+    onPrimaryContainer = Color(0xFFE0E7FF),
     secondary          = DarkPalette.Accent,
     onSecondary        = Color.Black,
-    secondaryContainer = Color(0xFF00363D),
+    secondaryContainer = Color(0xFF083344),
     onSecondaryContainer = DarkPalette.Accent,
     surface            = DarkPalette.Surface,
     onSurface          = DarkPalette.TextPrimary,
-    surfaceVariant     = Color(0xFF242840),
+    surfaceVariant     = Color(0xFF1E293B),
     onSurfaceVariant   = DarkPalette.TextSecond,
     background         = DarkPalette.Background,
     onBackground       = DarkPalette.TextPrimary,
@@ -131,10 +142,10 @@ fun StorageBar(label: String, used: Long, total: Long, modifier: Modifier = Modi
     }
     Column(modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, fontSize = 13.sp, color = pal.TextSecond, fontWeight = FontWeight.Medium)
-            Text("$pct% used", fontSize = 13.sp, color = barColor, fontWeight = FontWeight.SemiBold)
+            Text(label, fontSize = 13.sp, color = pal.TextPrimary, fontWeight = FontWeight.SemiBold)
+            Text("$pct% used", fontSize = 13.sp, color = barColor, fontWeight = FontWeight.Bold)
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         Box(
             Modifier.fillMaxWidth().height(10.dp)
                 .clip(RoundedCornerShape(5.dp)).background(pal.StorageFree)
@@ -144,7 +155,7 @@ fun StorageBar(label: String, used: Long, total: Long, modifier: Modifier = Modi
                     .clip(RoundedCornerShape(5.dp)).background(barColor)
             )
         }
-        Spacer(Modifier.height(3.dp))
+        Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Used: ${fmt(used)}", fontSize = 11.sp, color = pal.TextSecond)
             Text("Free: ${fmt(total - used)}", fontSize = 11.sp, color = pal.TextSecond)
@@ -165,7 +176,7 @@ fun ShimmerRow() {
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)).background(Color.Gray.copy(alpha = alpha)))
+        Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(Color.Gray.copy(alpha = alpha)))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Box(Modifier.fillMaxWidth(0.65f).height(14.dp).clip(RoundedCornerShape(4.dp)).background(Color.Gray.copy(alpha = alpha)))
