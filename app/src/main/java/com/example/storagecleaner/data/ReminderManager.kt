@@ -22,6 +22,14 @@ class ScanReminderReceiver : BroadcastReceiver() {
     }
 }
 
+class BootReminderReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent?) {
+        if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
+            ReminderManager.rescheduleNext(context)
+        }
+    }
+}
+
 object ReminderManager {
     private const val PREF_NAME = "storage_cleaner_prefs"
     private const val KEY_INTERVAL_DAYS = "reminder_interval_days"

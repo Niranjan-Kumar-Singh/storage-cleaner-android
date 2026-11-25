@@ -5,7 +5,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,48 +21,39 @@ import androidx.compose.ui.unit.sp
 import com.example.storagecleaner.data.KINDS
 import com.example.storagecleaner.data.fmt
 
-/** Colour palette for the pie/donut segments, one per KINDS entry */
 private val SEGMENT_COLORS = listOf(
-    Color(0xFF78909C),  // Other   – blue-grey
-    Color(0xFF42A5F5),  // Images  – blue
-    Color(0xFF7E57C2),  // Videos  – purple
-    Color(0xFF26A69A),  // Audio   – teal
-    Color(0xFFFF7043),  // Docs    – deep orange
-    Color(0xFFEC407A),  // Archives– pink
-    Color(0xFF66BB6A),  // APKs    – green
+    Color(0xFF64748B),  // Other    – Slate
+    Color(0xFF38BDF8),  // Images   – Sky
+    Color(0xFFF43F5E),  // Videos   – Rose
+    Color(0xFF10B981),  // Audio    – Emerald
+    Color(0xFFF59E0B),  // Docs     – Amber
+    Color(0xFFA855F7),  // Archives – Violet
+    Color(0xFF4F6EF7),  // APKs     – Cobalt
 )
 
-/**
- * Animated donut chart showing storage breakdown by file category.
- *
- * @param kindBytes  LongArray of size 7 — bytes per category matching KINDS indices.
- * @param totalBytes Grand total to show in the centre.
- * @param ringSize   Stroke width of the donut ring.
- */
 @Composable
 fun StoragePieChart(
     kindBytes: LongArray,
     totalBytes: Long,
     modifier: Modifier = Modifier,
-    ringSize: Dp = 28.dp
+    ringSize: Dp = 26.dp
 ) {
+    val pal = appPalette()
     val total = kindBytes.sum().coerceAtLeast(1L)
 
-    // Build animated sweep angles for each segment
     val sweeps = kindBytes.mapIndexed { i, bytes ->
         val target = (bytes.toFloat() / total) * 360f
         val animated by animateFloatAsState(
-            targetValue    = target,
-            animationSpec  = tween(durationMillis = 900, easing = FastOutSlowInEasing),
-            label          = "seg$i"
+            targetValue = target,
+            animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+            label = "seg$i"
         )
         animated
     }
 
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        // ── Donut ring ───────────────────────────────────────────────────
         Box(
-            Modifier.size(180.dp),
+            Modifier.size(172.dp),
             contentAlignment = Alignment.Center
         ) {
             Canvas(Modifier.fillMaxSize()) {
@@ -72,54 +62,52 @@ fun StoragePieChart(
                 var startAngle = -90f
 
                 sweeps.forEachIndexed { i, sweep ->
-                    if (sweep > 0.5f) {
+                    if (sweep > 0.6f) {
                         drawArc(
-                            color      = SEGMENT_COLORS[i],
+                            color = SEGMENT_COLORS[i],
                             startAngle = startAngle,
-                            sweepAngle = sweep - 1f,   // 1° gap between segments
-                            useCenter  = false,
-                            style      = stroke,
-                            size       = androidx.compose.ui.geometry.Size(
-                                size.width  - padding * 2,
+                            sweepAngle = (sweep - 1.2f).coerceAtLeast(0.5f),
+                            useCenter = false,
+                            style = stroke,
+                            size = androidx.compose.ui.geometry.Size(
+                                size.width - padding * 2,
                                 size.height - padding * 2
                             ),
-                            topLeft    = androidx.compose.ui.geometry.Offset(padding, padding)
+                            topLeft = androidx.compose.ui.geometry.Offset(padding, padding)
                         )
                         startAngle += sweep
                     }
                 }
             }
-            // Centre label
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text       = fmt(totalBytes),
-                    fontSize   = 18.sp,
+                    text = fmt(totalBytes),
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
-                    color      = MaterialTheme.colorScheme.onSurface,
-                    textAlign  = TextAlign.Center
+                    color = pal.TextPrimary,
+                    textAlign = TextAlign.Center
                 )
                 Text(
-                    text      = "total",
-                    fontSize  = 11.sp,
-                    color     = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = "analyzed",
+                    fontSize = 11.sp,
+                    color = pal.TextSecond,
                     textAlign = TextAlign.Center
                 )
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
 
-        // ── Legend ───────────────────────────────────────────────────────
         val cols = 2
         val rows = (KINDS.size + cols - 1) / cols
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             for (row in 0 until rows) {
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     for (col in 0 until cols) {
                         val idx = row * cols + col
@@ -127,26 +115,26 @@ fun StoragePieChart(
                             Row(
                                 Modifier.weight(1f),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Box(
                                     Modifier
                                         .size(10.dp)
-                                        .clip(RoundedCornerShape(2.dp))
+                                        .clip(RoundedCornerShape(3.dp))
                                         .background(SEGMENT_COLORS[idx])
                                 )
                                 Column {
                                     Text(
                                         KINDS[idx],
-                                        fontSize   = 11.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium,
-                                        color      = MaterialTheme.colorScheme.onSurface,
-                                        maxLines   = 1
+                                        color = pal.TextPrimary,
+                                        maxLines = 1
                                     )
                                     Text(
                                         fmt(kindBytes[idx]),
-                                        fontSize = 10.sp,
-                                        color    = MaterialTheme.colorScheme.onSurfaceVariant
+                                        fontSize = 11.sp,
+                                        color = pal.TextSecond
                                     )
                                 }
                             }

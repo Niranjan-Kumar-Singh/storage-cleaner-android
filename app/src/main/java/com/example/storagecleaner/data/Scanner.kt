@@ -2,6 +2,7 @@ package com.example.storagecleaner.data
 
 import java.io.File
 import java.io.RandomAccessFile
+import java.nio.file.Files
 import java.security.MessageDigest
 
 // ─── Size formatter ───────────────────────────────────────────────────────
@@ -13,19 +14,47 @@ fun fmt(b: Long): String {
     return if (i == 0) "$b B" else "%.1f %s".format(v, units[i])
 }
 
-fun parentOf(p: String) = p.substringBeforeLast('/', "")
+fun parentOf(p: String): String = p.replace('\\', '/').substringBeforeLast('/', "")
 
 fun covered(p: String, sel: Set<String>): Boolean {
-    var q = p
+    var q = p.replace('\\', '/')
     while (q.isNotEmpty()) { if (q in sel) return true; q = parentOf(q) }
     return false
 }
 
+/**
+ * Resolves `.` and `..` path segments lexically so traversal strings like
+ * `/storage/emulated/0/Download/../Android/data` are caught accurately even when
+ * checking paths that do not exist yet.
+ */
+fun normalizePathLexically(path: String): String {
+    val unified = path.replace('\\', '/')
+    val isAbsolute = unified.startsWith("/")
+    val stack = ArrayDeque<String>()
+    for (part in unified.split('/')) {
+        when (part) {
+            "", "." -> Unit
+            ".." -> if (stack.isNotEmpty()) stack.removeLast()
+            else -> stack.addLast(part)
+        }
+    }
+    val joined = stack.joinToString("/")
+    return if (isAbsolute) "/$joined" else joined
+}
+
 fun isSystemPath(path: String): Boolean {
-    val norm = path.replace('\\', '/')
+    val norm = normalizePathLexically(path)
     val low = norm.lowercase()
-    return SYSTEM_PROTECTED_PATHS.any { norm.startsWith(it) } ||
-        SYSTEM_PATH_SEGMENTS.any { low.contains(it) }
+    return SYSTEM_PROTECTED_PATHS.any { prot ->
+        norm == prot || norm.startsWith("$prot/")
+    } || SYSTEM_PATH_SEGMENTS.any { seg ->
+        low.contains(seg) || "$low/".contains(seg)
+    }
+}
+
+private fun isInternalTrashPath(path: String): Boolean {
+    val low = path.replace('\\', '/').lowercase()
+    return low.endsWith("/.storagecleaner_trash") || low.contains("/.storagecleaner_trash/")
 }
 
 fun makeItem(f: File, now: Long): FileItem {
@@ -59,17 +88,27 @@ internal fun hash(f: File, full: Boolean): String = try {
 } catch (_: Exception) { f.path + "_err" }
 
 // ─── Main scan ────────────────────────────────────────────────────────────
-fun scan(roots: List<File>, status: (String) -> Unit): ScanResult {
+fun scan(
+    roots: List<File>,
+    isCancelled: () -> Boolean = { false },
+    status: (String) -> Unit
+): ScanResult {
     val now = System.currentTimeMillis()
     val files = ArrayList<FileItem>(2000); val emptyD = ArrayList<FileItem>(); var n = 0
 
     for (root in roots) {
+        if (isCancelled()) break
         root.walkTopDown()
             .onEnter { dir ->
-                !java.nio.file.Files.isSymbolicLink(dir.toPath()) && !isSystemPath(dir.path)
+                !isCancelled() &&
+                    !Files.isSymbolicLink(dir.toPath()) &&
+                    !isSystemPath(dir.path) &&
+                    !isInternalTrashPath(dir.path)
             }
             .forEach { f ->
+                if (isCancelled()) return@forEach
                 try {
+                    if (isInternalTrashPath(f.path)) return@forEach
                     if (f.isDirectory) {
                         if (f != root) {
                             val listing = f.list()
@@ -77,34 +116,34 @@ fun scan(roots: List<File>, status: (String) -> Unit): ScanResult {
                                 emptyD.add(FileItem(f.path, 0, f.lastModified(), true))
                         }
                     } else if (f.isFile && f.canRead()) {
-                        if (++n % 500 == 0) status("Scanning… $n files found")
+                        if (++n % 400 == 0) status("Scanning… $n files found")
                         files.add(makeItem(f, now))
                     }
                 } catch (_: Exception) { }
-                Unit
             }
     }
 
+    if (isCancelled()) {
+        return ScanResult(files, emptyD, emptySet(), emptyList())
+    }
+
     // ── Duplicate detection + group building ─────────────────────────────
-    status("Detecting duplicates…")
+    status("Analyzing duplicates across $n files…")
     val dups = HashSet<String>()
     val groups = ArrayList<List<FileItem>>()
 
-    files.filter { it.size in 1_000L..2_000_000_000L }
-        .groupBy { it.size }.values.filter { it.size > 1 }
-        .forEach { sameSize ->
-            sameSize.groupBy { hash(File(it.path), false) }.values
-                .filter { it.size > 1 }
-                .forEach { sameQuick ->
-                    sameQuick.groupBy { hash(File(it.path), true) }.values
-                        .filter { it.size > 1 }
-                        .forEach { sameFull ->
-                            val sorted = sameFull.sortedBy { it.modified }
-                            groups.add(sorted)                              // oldest first = "original"
-                            sorted.drop(1).forEach { dups.add(it.path) }   // rest = duplicates
-                        }
-                }
+    for (sameSize in files.filter { it.size in 1_000L..2_000_000_000L }
+        .groupBy { it.size }.values.filter { it.size > 1 }) {
+        if (isCancelled()) break
+        for (sameQuick in sameSize.groupBy { hash(File(it.path), false) }.values.filter { it.size > 1 }) {
+            if (isCancelled()) break
+            for (sameFull in sameQuick.groupBy { hash(File(it.path), true) }.values.filter { it.size > 1 }) {
+                val sorted = sameFull.sortedBy { it.modified }
+                groups.add(sorted)                              // oldest first = "original"
+                sorted.drop(1).forEach { dups.add(it.path) }   // rest = duplicates
+            }
         }
+    }
 
     return ScanResult(files, emptyD, dups, groups)
 }
@@ -151,5 +190,5 @@ fun sorted(list: List<FileItem>, sortIndex: Int): List<FileItem> = when (sortInd
     0    -> list.sortedByDescending { it.size }
     1    -> list.sortedByDescending { it.modified }
     2    -> list.sortedBy           { it.modified }
-    else -> list.sortedBy           { it.path.substringAfterLast('/').lowercase() }
+    else -> list.sortedBy           { it.path.replace('\\', '/').substringAfterLast('/').lowercase() }
 }

@@ -4,14 +4,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -19,109 +22,112 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
+import com.example.storagecleaner.data.fmt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 data class AppInfo(
     val packageName: String,
-    val label:       String,
-    val dataSize:    Long,   // -1 if unknown
-    val isSystem:    Boolean
+    val label: String,
+    val apkSize: Long,
+    val isSystem: Boolean
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppCacheScreen(context: Context, onBack: () -> Unit) {
-    var apps    by remember { mutableStateOf(listOf<AppInfo>()) }
+    val pal = appPalette()
+    var apps by remember { mutableStateOf(listOf<AppInfo>()) }
     var loading by remember { mutableStateOf(true) }
     var showSystem by remember { mutableStateOf(false) }
-    var query   by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         loading = true
-        apps    = withContext(Dispatchers.IO) { loadApps(context) }
+        apps = withContext(Dispatchers.IO) { loadApps(context) }
         loading = false
     }
 
     val displayed = remember(apps, showSystem, query) {
         apps
             .filter { showSystem || !it.isSystem }
-            .filter { query.isBlank() || it.label.contains(query, ignoreCase = true) }
-            .sortedByDescending { it.dataSize }
+            .filter {
+                query.isBlank() ||
+                    it.label.contains(query, ignoreCase = true) ||
+                    it.packageName.contains(query, ignoreCase = true)
+            }
+            .sortedWith(compareByDescending<AppInfo> { it.apkSize }.thenBy { it.label })
     }
 
     Scaffold(
+        containerColor = pal.Background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("App Manager", fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                        Text("Tap an app to manage its cache", fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(0.8f))
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onPrimary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor    = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            SubScreenTopBar(
+                title = "App Manager",
+                subtitle = "${displayed.size} installed apps • Tap to clear cache",
+                onBack = onBack
             )
         }
     ) { pad ->
         Column(Modifier.fillMaxSize().padding(pad)) {
 
-            // ── Search + system toggle ────────────────────────────────
+            // Search + System Filter Row
             Row(
-                Modifier.fillMaxWidth().padding(12.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedTextField(
-                    value           = query,
-                    onValueChange   = { query = it },
-                    placeholder     = { Text("Search apps…", fontSize = 13.sp) },
-                    singleLine      = true,
-                    leadingIcon     = { Icon(Icons.Default.Search, null, Modifier.size(18.dp)) },
-                    trailingIcon    = {
-                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) {
-                            Icon(Icons.Default.Close, null, Modifier.size(16.dp))
-                        }
-                    },
-                    shape           = RoundedCornerShape(12.dp),
-                    modifier        = Modifier.weight(1f),
-                    textStyle       = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+                CleanSearchField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    placeholder = "Search apps or packages…",
+                    modifier = Modifier.weight(1f)
                 )
-                FilterChip(
-                    selected = showSystem,
-                    onClick  = { showSystem = !showSystem },
-                    label    = { Text("System", fontSize = 12.sp) }
-                )
+
+                Surface(
+                    onClick = { showSystem = !showSystem },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (showSystem) pal.Navy else pal.Surface,
+                    border = BorderStroke(1.dp, if (showSystem) pal.Navy else pal.DividerColor),
+                    modifier = Modifier.heightIn(min = 44.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (showSystem) "System: On" else "System: Off",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (showSystem) Color.White else pal.TextSecond,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
             }
 
-            // ── Info banner ───────────────────────────────────────────
             Surface(
-                color    = MaterialTheme.colorScheme.primaryContainer,
+                color = pal.Navy.copy(alpha = 0.09f),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    Modifier.padding(10.dp),
+                    Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.Info, null, Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Icon(Icons.Default.Info, null, Modifier.size(16.dp), tint = pal.Navy)
                     Text(
-                        "${displayed.size} apps shown. Tap an app → open its settings → Clear Cache / Clear Storage.",
+                        "Android restricts direct third-party cache wiping. Tap any app to open its System Storage settings directly.",
                         fontSize = 11.sp,
-                        color    = MaterialTheme.colorScheme.onPrimaryContainer
+                        color = pal.TextPrimary
                     )
                 }
             }
@@ -129,31 +135,31 @@ fun AppCacheScreen(context: Context, onBack: () -> Unit) {
             when {
                 loading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = pal.Navy)
                     }
                 }
                 displayed.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No apps found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("No matching applications found", fontSize = 14.sp, color = pal.TextSecond)
                     }
                 }
                 else -> {
                     LazyColumn(Modifier.weight(1f)) {
                         items(displayed, key = { it.packageName }) { app ->
-                            AppRow(app) {
-                                // Open app info page in system settings
+                            AppRow(context, app) {
                                 try {
                                     context.startActivity(
-                                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                            Uri.parse("package:${app.packageName}"))
-                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        Intent(
+                                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                            Uri.parse("package:${app.packageName}")
+                                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     )
                                 } catch (_: Exception) { }
                             }
                             HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant,
+                                color = pal.DividerColor.copy(0.5f),
                                 thickness = 0.5.dp,
-                                modifier  = Modifier.padding(start = 68.dp)
+                                modifier = Modifier.padding(start = 72.dp)
                             )
                         }
                     }
@@ -164,7 +170,18 @@ fun AppCacheScreen(context: Context, onBack: () -> Unit) {
 }
 
 @Composable
-private fun AppRow(app: AppInfo, onClick: () -> Unit) {
+private fun AppRow(context: Context, app: AppInfo, onClick: () -> Unit) {
+    val pal = appPalette()
+    var iconBmp by remember(app.packageName) { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(app.packageName) {
+        iconBmp = withContext(Dispatchers.IO) {
+            try {
+                context.packageManager.getApplicationIcon(app.packageName).toBitmap(96, 96)
+            } catch (_: Exception) { null }
+        }
+    }
+
     Row(
         Modifier
             .fillMaxWidth()
@@ -172,27 +189,27 @@ private fun AppRow(app: AppInfo, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // App icon placeholder (letter avatar)
         Box(
             Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .fillMaxSize(),
+                .background(pal.CardBg),
             contentAlignment = Alignment.Center
         ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color    = MaterialTheme.colorScheme.primaryContainer,
-                shape    = RoundedCornerShape(10.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Text(
-                        app.label.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                        fontSize   = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color      = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
+            val bmp = iconBmp
+            if (bmp != null) {
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = app.label,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Text(
+                    app.label.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = pal.Navy
+                )
             }
         }
 
@@ -200,29 +217,36 @@ private fun AppRow(app: AppInfo, onClick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(
                 app.label,
-                fontSize   = 14.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                maxLines   = 1,
-                overflow   = TextOverflow.Ellipsis,
-                color      = MaterialTheme.colorScheme.onSurface
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = pal.TextPrimary
             )
             Text(
                 app.packageName,
-                fontSize = 10.sp,
-                color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                color = pal.TextSecond,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (app.isSystem) {
-                Text("System app", fontSize = 9.sp, color = MaterialTheme.colorScheme.secondary)
-            }
         }
         Spacer(Modifier.width(8.dp))
-        Icon(
-            Icons.Default.ChevronRight, null,
-            Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Column(horizontalAlignment = Alignment.End) {
+            if (app.apkSize > 0) {
+                Text(
+                    fmt(app.apkSize),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = pal.TextPrimary
+                )
+            }
+            if (app.isSystem) {
+                Text("System", fontSize = 10.sp, color = pal.AccentDark, fontWeight = FontWeight.Medium)
+            }
+        }
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp), tint = pal.TextSecond)
     }
 }
 
@@ -230,9 +254,12 @@ private fun loadApps(ctx: Context): List<AppInfo> {
     val pm = ctx.packageManager
     return try {
         pm.getInstalledApplications(PackageManager.GET_META_DATA).map { ai ->
-            val label    = pm.getApplicationLabel(ai).toString()
+            val label = pm.getApplicationLabel(ai).toString()
             val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-            AppInfo(ai.packageName, label, -1L, isSystem)
-        }.sortedWith(compareBy({ it.isSystem }, { it.label }))
+            val apkSize = try {
+                ai.publicSourceDir?.let { File(it).length() } ?: 0L
+            } catch (_: Exception) { 0L }
+            AppInfo(ai.packageName, label, apkSize, isSystem)
+        }
     } catch (_: Exception) { emptyList() }
 }

@@ -4,10 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.media.MediaMetadataRetriever
-import android.net.Uri
 import android.webkit.MimeTypeMap
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,7 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,8 +30,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,32 +46,26 @@ import java.io.File
 import java.text.DateFormat
 import java.util.Date
 
-/**
- * Resolves MIME type for a file path.
- */
 fun getMimeType(path: String): String {
     val ext = path.substringAfterLast('.', "").lowercase()
     if (ext.isEmpty()) return "*/*"
     return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: when (ext) {
-        "apk" -> "application/vnd.android.package-archive"
-        "log", "txt", "md" -> "text/plain"
+        "apk", "apks", "xapk" -> "application/vnd.android.package-archive"
+        "log", "txt", "md", "json", "xml", "csv", "ini", "conf" -> "text/plain"
         "pdf" -> "application/pdf"
-        "mp3", "m4a", "wav", "aac", "ogg", "flac" -> "audio/*"
+        "mp3", "m4a", "wav", "aac", "ogg", "flac", "opus" -> "audio/*"
         "mp4", "mkv", "mov", "avi", "webm", "3gp" -> "video/*"
-        "jpg", "jpeg", "png", "webp", "gif", "heic" -> "image/*"
+        "jpg", "jpeg", "png", "webp", "gif", "heic", "avif" -> "image/*"
         "zip", "tar", "gz", "7z", "rar" -> "application/zip"
         else -> "*/*"
     }
 }
 
-/**
- * Launches an external app to view the file via FileProvider.
- */
 fun openFileExternally(context: Context, path: String) {
     try {
         val file = File(path)
         if (!file.exists()) {
-            Toast.makeText(context, "File does not exist", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "File no longer exists", Toast.LENGTH_SHORT).show()
             return
         }
         val uri = FileProvider.getUriForFile(
@@ -83,17 +79,47 @@ fun openFileExternally(context: Context, path: String) {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        val chooser = Intent.createChooser(intent, "Open with…")
+        val chooser = Intent.createChooser(intent, "Open with")
         chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(chooser)
     } catch (e: Exception) {
-        Toast.makeText(context, "Unable to open file: ${e.message}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "No compatible app found: ${e.message}", Toast.LENGTH_SHORT).show()
     }
 }
 
+private fun decodeOrientedBitmap(path: String, maxDim: Int = 1200): Triple<Bitmap?, Int, Int> {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    val w = bounds.outWidth
+    val h = bounds.outHeight
+    if (w <= 0 || h <= 0) return Triple(null, 0, 0)
+
+    var sample = 1
+    while (w / sample > maxDim || h / sample > maxDim) sample *= 2
+    val raw = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
+        ?: return Triple(null, w, h)
+
+    val rotated = try {
+        val exif = ExifInterface(path)
+        val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        val angle = when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> 0f
+        }
+        if (angle != 0f) {
+            val matrix = Matrix().apply { postRotate(angle) }
+            Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, matrix, true)
+        } else raw
+    } catch (_: Exception) { raw }
+
+    return Triple(rotated, w, h)
+}
+
+private val TEXT_PREVIEW_EXTS = setOf("txt", "log", "json", "xml", "csv", "md", "ini", "conf", "prop")
 val KIND_NAMES = listOf("Other", "Image", "Video", "Audio", "Document", "Archive", "APK")
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilePreviewDialog(
     item: FileItem,
@@ -104,31 +130,26 @@ fun FilePreviewDialog(
     val context = LocalContext.current
     val pal = appPalette()
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var textSnippet by remember { mutableStateOf<String?>(null) }
     var mediaExtra by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var confirmWipe by remember { mutableStateOf(false) }
 
-    // Load preview bitmap on background thread
     LaunchedEffect(item.path) {
         loading = true
+        bitmap = null
+        textSnippet = null
+        mediaExtra = ""
         withContext(Dispatchers.IO) {
             try {
-                when (item.kind) {
+                if (item.isDir) {
+                    val childrenCount = File(item.path).list()?.size ?: 0
+                    mediaExtra = "$childrenCount items inside folder"
+                } else when (item.kind) {
                     KIND_IMAGE -> {
-                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                        BitmapFactory.decodeFile(item.path, bounds)
-                        val w = bounds.outWidth
-                        val h = bounds.outHeight
-                        if (w > 0 && h > 0) {
-                            mediaExtra = "${w} × ${h} px  •  ${bounds.outMimeType?.substringAfter('/')?.uppercase() ?: "IMG"}"
-                        }
-                        var sample = 1
-                        val maxDim = 1200
-                        while (bounds.outWidth / sample > maxDim || bounds.outHeight / sample > maxDim) {
-                            sample *= 2
-                        }
-                        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-                        bitmap = BitmapFactory.decodeFile(item.path, opts)
+                        val (bmp, w, h) = decodeOrientedBitmap(item.path)
+                        bitmap = bmp
+                        if (w > 0 && h > 0) mediaExtra = "$w × $h px"
                     }
                     KIND_VIDEO -> {
                         val mmr = MediaMetadataRetriever()
@@ -157,7 +178,22 @@ fun FilePreviewDialog(
                         } catch (_: Exception) {}
                         finally { mmr.release() }
                     }
-                    else -> {}
+                    else -> {
+                        val ext = item.path.substringAfterLast('.', "").lowercase()
+                        if (ext in TEXT_PREVIEW_EXTS && item.size in 1..2_000_000) {
+                            val file = File(item.path)
+                            if (file.canRead()) {
+                                file.inputStream().bufferedReader().use { reader ->
+                                    val buf = CharArray(3000)
+                                    val read = reader.read(buf)
+                                    if (read > 0) {
+                                        val str = String(buf, 0, read)
+                                        textSnippet = if (read == 3000) "$str…" else str
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             } catch (_: Exception) {}
         }
@@ -170,22 +206,22 @@ fun FilePreviewDialog(
     ) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth(0.94f)
+                .fillMaxWidth(0.92f)
                 .wrapContentHeight()
-                .padding(vertical = 24.dp),
-            shape = RoundedCornerShape(24.dp),
+                .padding(vertical = 20.dp),
+            shape = RoundedCornerShape(22.dp),
             color = pal.CardBg,
             tonalElevation = 8.dp,
-            border = androidx.compose.foundation.BorderStroke(1.dp, pal.DividerColor)
+            border = BorderStroke(1.dp, pal.DividerColor)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp)
+                    .padding(18.dp)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Header with File Name & Close Button
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -193,48 +229,64 @@ fun FilePreviewDialog(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            text = item.path.substringAfterLast('/'),
+                            text = item.path.replace('\\', '/').substringAfterLast('/'),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = pal.TextPrimary,
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            text = KIND_NAMES.getOrElse(item.kind) { "File" } + "  •  " + fmt(item.size),
+                            text = if (item.isDir) "Folder  •  ${fmt(item.size)}"
+                            else "${KIND_NAMES.getOrElse(item.kind) { "File" }}  •  ${fmt(item.size)}",
                             fontSize = 12.sp,
                             color = pal.AccentDark,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(34.dp)) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = pal.TextSecond)
                     }
                 }
 
                 Spacer(Modifier.height(14.dp))
 
-                // Media Preview Area
+                // Visual / Text Preview Area
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 180.dp, max = 280.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .heightIn(min = 160.dp, max = 260.dp)
+                        .clip(RoundedCornerShape(14.dp))
                         .background(pal.Background)
-                        .border(1.dp, pal.DividerColor.copy(0.4f), RoundedCornerShape(16.dp)),
+                        .border(1.dp, pal.DividerColor.copy(0.6f), RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     when {
-                        loading -> {
-                            CircularProgressIndicator(color = pal.Navy, strokeWidth = 2.5.dp)
-                        }
+                        loading -> CircularProgressIndicator(color = pal.Navy, strokeWidth = 2.5.dp)
                         bitmap != null -> {
                             Image(
                                 bitmap = bitmap!!.asImageBitmap(),
-                                contentDescription = "Preview",
+                                contentDescription = "File preview",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Fit
                             )
+                        }
+                        textSnippet != null -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(12.dp)
+                            ) {
+                                Text(
+                                    text = textSnippet!!,
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = pal.TextPrimary
+                                )
+                            }
                         }
                         else -> {
                             Column(
@@ -242,28 +294,38 @@ fun FilePreviewDialog(
                                 verticalArrangement = Arrangement.Center,
                                 modifier = Modifier.padding(16.dp)
                             ) {
-                                val visual = getKindVisual(item.kind)
-                                Box(
-                                    modifier = Modifier
-                                        .size(72.dp)
-                                        .clip(CircleShape)
-                                        .background(visual.container.copy(0.4f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = visual.icon,
-                                        contentDescription = null,
-                                        tint = visual.tint,
-                                        modifier = Modifier.size(36.dp)
+                                if (item.isDir) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(68.dp)
+                                            .clip(CircleShape)
+                                            .background(pal.Navy.copy(0.14f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.Folder, null, tint = pal.Navy, modifier = Modifier.size(34.dp))
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("DIRECTORY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = pal.TextPrimary)
+                                } else {
+                                    val isDark = pal.Background == DarkPalette.Background
+                                    val visual = getKindVisual(item.kind, isDark)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(68.dp)
+                                            .clip(CircleShape)
+                                            .background(visual.container),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(visual.icon, null, tint = visual.tint, modifier = Modifier.size(34.dp))
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        text = item.path.substringAfterLast('.').uppercase().ifEmpty { "FILE" },
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = pal.TextPrimary
                                     )
                                 }
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    text = item.path.substringAfterLast('.').uppercase().ifEmpty { "FILE" },
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = pal.TextPrimary
-                                )
                             }
                         }
                     }
@@ -271,36 +333,30 @@ fun FilePreviewDialog(
 
                 if (mediaExtra.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = mediaExtra,
-                        fontSize = 11.sp,
-                        color = pal.TextSecond,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Text(mediaExtra, fontSize = 12.sp, color = pal.TextSecond, fontWeight = FontWeight.Medium)
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
 
-                // Metadata Card
+                // Metadata Table
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    color = pal.Background
+                    color = pal.Background,
+                    border = BorderStroke(1.dp, pal.DividerColor.copy(0.6f))
                 ) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Full Path", fontSize = 11.sp, color = pal.TextSecond)
-                        }
+                        Text("Location", fontSize = 11.sp, color = pal.TextSecond)
                         Text(
                             item.path,
                             fontSize = 11.sp,
                             color = pal.TextPrimary,
-                            maxLines = 2,
+                            maxLines = 3,
                             overflow = TextOverflow.Ellipsis
                         )
-                        HorizontalDivider(color = pal.DividerColor.copy(0.5f), thickness = 0.5.dp)
+                        HorizontalDivider(color = pal.DividerColor.copy(0.6f), thickness = 0.5.dp)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Date Modified", fontSize = 11.sp, color = pal.TextSecond)
+                            Text("Modified", fontSize = 11.sp, color = pal.TextSecond)
                             Text(
                                 if (item.modified > 0) DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(item.modified)) else "Unknown",
                                 fontSize = 11.sp,
@@ -308,55 +364,42 @@ fun FilePreviewDialog(
                             )
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Exact Size", fontSize = 11.sp, color = pal.TextSecond)
-                            Text("${item.size} bytes (${fmt(item.size)})", fontSize = 11.sp, color = pal.TextPrimary, fontWeight = FontWeight.SemiBold)
+                            Text("Size", fontSize = 11.sp, color = pal.TextSecond)
+                            Text("${fmt(item.size)} (${item.size} B)", fontSize = 11.sp, color = pal.TextPrimary, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
 
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(16.dp))
 
-                // Action Buttons
+                // Crisp Action Buttons — Zero Wrapping / Zero Clipping
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    // Open with system application button
-                    Button(
-                        onClick = { openFileExternally(context, item.path) },
-                        modifier = Modifier.fillMaxWidth().height(46.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = pal.Navy)
-                    ) {
-                        Icon(Icons.Outlined.OpenInNew, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Open in App / Player", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    if (!item.isDir) {
+                        CleanPrimaryButton(
+                            text = "Open in External App",
+                            icon = Icons.AutoMirrored.Outlined.OpenInNew,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { openFileExternally(context, item.path) }
+                        )
                     }
 
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Move to Trash (Soft Delete)
-                        OutlinedButton(
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        CleanOutlinedButton(
+                            text = "Trash",
+                            icon = Icons.Default.DeleteOutline,
+                            modifier = Modifier.weight(1f),
                             onClick = {
                                 onTrash(item.path)
                                 onDismiss()
-                            },
-                            modifier = Modifier.weight(1f).height(44.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = pal.TextPrimary)
-                        ) {
-                            Icon(Icons.Default.DeleteOutline, null, Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Trash", fontSize = 13.sp)
-                        }
-
-                        // Secure Wipe (DoD 3-pass)
-                        Button(
-                            onClick = { confirmWipe = true },
-                            modifier = Modifier.weight(1f).height(44.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = pal.Danger)
-                        ) {
-                            Icon(Icons.Default.DeleteForever, null, Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Secure Wipe", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
+                            }
+                        )
+                        CleanPrimaryButton(
+                            text = "Wipe",
+                            icon = Icons.Default.DeleteForever,
+                            containerColor = pal.Danger,
+                            modifier = Modifier.weight(1f),
+                            onClick = { confirmWipe = true }
+                        )
                     }
                 }
             }
@@ -366,28 +409,35 @@ fun FilePreviewDialog(
     if (confirmWipe) {
         AlertDialog(
             onDismissRequest = { confirmWipe = false },
-            title = { Text("Permanently Erase File?", fontWeight = FontWeight.Bold) },
+            containerColor = pal.CardBg,
+            icon = { Icon(Icons.Default.DeleteForever, null, tint = pal.Danger) },
+            title = { Text("Permanently Erase?", fontWeight = FontWeight.Bold, color = pal.TextPrimary) },
             text = {
                 Text(
-                    "DoD 5220.22-M 3-pass secure overwrite will be performed.\n" +
-                    "This file CANNOT be recovered by any file recovery tool.\n\n" +
-                    "File: ${item.path.substringAfterLast('/')} (${fmt(item.size)})"
+                    "DoD 5220.22-M 3-pass overwrite will erase this ${if (item.isDir) "folder" else "file"} permanently.\n\n" +
+                    "${item.path.replace('\\', '/').substringAfterLast('/')} (${fmt(item.size)})",
+                    fontSize = 13.sp,
+                    color = pal.TextSecond
                 )
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        confirmWipe = false
-                        onDelete(item.path, SecureDelete.Mode.SECURE_WIPE)
-                        onDismiss()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = pal.Danger)
-                ) {
-                    Text("Permanently Erase", color = Color.White)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CleanOutlinedButton(
+                        text = "Cancel",
+                        modifier = Modifier.weight(1f),
+                        onClick = { confirmWipe = false }
+                    )
+                    CleanPrimaryButton(
+                        text = "Erase Now",
+                        containerColor = pal.Danger,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            confirmWipe = false
+                            onDelete(item.path, SecureDelete.Mode.SECURE_WIPE)
+                            onDismiss()
+                        }
+                    )
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmWipe = false }) { Text("Cancel") }
             }
         )
     }

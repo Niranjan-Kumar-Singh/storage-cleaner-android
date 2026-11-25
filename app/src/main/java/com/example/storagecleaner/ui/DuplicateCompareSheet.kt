@@ -1,7 +1,10 @@
 package com.example.storagecleaner.ui
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -9,8 +12,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -21,42 +22,35 @@ import com.example.storagecleaner.data.fmt
 import java.text.DateFormat
 import java.util.Date
 
-/**
- * Modal bottom sheet for side-by-side duplicate comparison.
- *
- * Shows the duplicate file and its "original" counterpart (oldest in group),
- * plus actions to delete either one.
- *
- * @param item       The file the user tapped (a duplicate).
- * @param scanResult Full scan — used to find the duplicate group.
- * @param onDelete   Called with the path to delete and the other path to keep.
- * @param onDismiss  Called when sheet should close.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DuplicateCompareSheet(
-    item:       FileItem,
+    item: FileItem,
     scanResult: ScanResult,
-    onDelete:   (toDelete: String, toKeep: String) -> Unit,
-    onDismiss:  () -> Unit
+    onPreview: (FileItem) -> Unit,
+    onDeleteMany: (pathsToDelete: List<String>) -> Unit,
+    onDismiss: () -> Unit
 ) {
-    // Find the group this duplicate belongs to
-    val group = remember(item) {
-        scanResult.duplicateGroups.firstOrNull { group ->
-            group.any { it.path == item.path }
-        } ?: listOf(item)
+    val pal = appPalette()
+    val group = remember(item, scanResult) {
+        scanResult.duplicateGroups.firstOrNull { g ->
+            g.any { it.path == item.path }
+        }?.sortedBy { it.modified } ?: emptyList()
     }
 
-    // The "original" is the oldest; the duplicate is the tapped item
-    val original  = group.minByOrNull { it.modified } ?: item
-    val duplicate = if (original.path == item.path) group.getOrNull(1) ?: item else item
+    LaunchedEffect(group.size) {
+        if (group.size <= 1) onDismiss()
+    }
+    if (group.size <= 1) return
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val copies = group.drop(1)
+    val recoverable = copies.sumOf { it.size }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState       = sheetState,
-        containerColor   = MaterialTheme.colorScheme.surface
+        sheetState = sheetState,
+        containerColor = pal.Surface
     ) {
         Column(
             Modifier
@@ -64,133 +58,123 @@ fun DuplicateCompareSheet(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp)
         ) {
-            // Handle bar hint
-            Text(
-                "Duplicate Comparison",
-                fontSize   = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color      = MaterialTheme.colorScheme.onSurface,
-                modifier   = Modifier.padding(bottom = 12.dp)
-            )
-
-            // ── Side-by-side cards ─────────────────────────────────────
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                DupFileCard(
-                    label    = "Original (Oldest)",
-                    item     = original,
-                    modifier = Modifier.weight(1f),
-                    tint     = MaterialTheme.colorScheme.primary
-                )
-                DupFileCard(
-                    label    = "Duplicate Copy",
-                    item     = duplicate,
-                    modifier = Modifier.weight(1f),
-                    tint     = MaterialTheme.colorScheme.error
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(16.dp))
-
-            // ── Actions ───────────────────────────────────────────────
-            Text(
-                "Which one do you want to keep?",
-                fontSize = 13.sp,
-                color    = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(10.dp))
-
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Keep original, delete duplicate
-                OutlinedButton(
-                    onClick  = {
-                        onDelete(duplicate.path, original.path)
-                        onDismiss()
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors   = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Identical Files (${group.size} copies)",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = pal.TextPrimary
                     )
-                ) {
-                    Icon(Icons.Default.DeleteForever, null, Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Delete duplicate", fontSize = 12.sp)
-                }
-
-                // Keep duplicate, delete original
-                OutlinedButton(
-                    onClick  = {
-                        onDelete(original.path, duplicate.path)
-                        onDismiss()
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors   = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    Text(
+                        "Tap any copy to preview. Oldest file is preserved by default.",
+                        fontSize = 12.sp,
+                        color = pal.TextSecond
                     )
-                ) {
-                    Icon(Icons.Default.Delete, null, Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Delete original", fontSize = 12.sp)
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
-            TextButton(
-                onClick  = onDismiss,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Cancel — keep both", fontSize = 13.sp) }
-        }
-    }
-}
+            Spacer(Modifier.height(12.dp))
 
-@Composable
-private fun DupFileCard(label: String, item: FileItem, modifier: Modifier, tint: Color) {
-    Card(
-        modifier  = modifier,
-        shape     = RoundedCornerShape(12.dp),
-        colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(0.dp)
-    ) {
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(label, fontSize = 10.sp, color = tint, fontWeight = FontWeight.SemiBold)
-
-            // Thumbnail
-            FileThumbnail(item.path, item.kind, Modifier)
-
-            Text(
-                item.path.substringAfterLast('/'),
-                fontSize   = 12.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines   = 2,
-                overflow   = TextOverflow.Ellipsis,
-                color      = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                fmt(item.size),
-                fontSize   = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color      = tint
-            )
-            if (item.modified > 0) {
-                Text(
-                    DateFormat.getDateInstance().format(Date(item.modified)),
-                    fontSize = 10.sp,
-                    color    = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                itemsIndexed(group, key = { _, f -> f.path }) { idx, copy ->
+                    val isOriginal = idx == 0
+                    val accent = if (isOriginal) pal.Success else pal.Danger
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = pal.CardBg,
+                        border = BorderStroke(1.dp, if (isOriginal) accent.copy(0.4f) else pal.DividerColor),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPreview(copy) }
+                    ) {
+                        Row(
+                            Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            FileThumbnail(copy.path, copy.kind)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Surface(
+                                        shape = RoundedCornerShape(5.dp),
+                                        color = accent.copy(alpha = 0.14f)
+                                    ) {
+                                        Text(
+                                            text = if (isOriginal) "ORIGINAL" else "DUPLICATE #$idx",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = accent,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                    Text(
+                                        fmt(copy.size),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = pal.TextPrimary
+                                    )
+                                }
+                                Spacer(Modifier.height(3.dp))
+                                Text(
+                                    copy.path.replace('\\', '/').substringAfterLast('/'),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = pal.TextPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    copy.path.removePrefix("/storage/emulated/0").substringBeforeLast('/').ifEmpty { "/" } +
+                                        if (copy.modified > 0) " • ${DateFormat.getDateInstance().format(Date(copy.modified))}" else "",
+                                    fontSize = 11.sp,
+                                    color = pal.TextSecond,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (!isOriginal) {
+                                IconButton(onClick = {
+                                    onDeleteMany(listOf(copy.path))
+                                    onDismiss()
+                                }) {
+                                    Icon(Icons.Default.DeleteOutline, "Delete this copy", tint = pal.Danger)
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            Text(
-                item.path.removePrefix("/storage/emulated/0").substringBeforeLast('/').ifEmpty { "/" },
-                fontSize = 9.sp,
-                color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+
+            Spacer(Modifier.height(16.dp))
+
+            if (copies.isNotEmpty()) {
+                CleanPrimaryButton(
+                    text = "Keep Oldest • Delete ${copies.size} ${if (copies.size == 1) "Copy" else "Copies"} (${fmt(recoverable)})",
+                    icon = Icons.Default.DeleteSweep,
+                    containerColor = pal.Danger,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        onDeleteMany(copies.map { it.path })
+                        onDismiss()
+                    }
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            CleanOutlinedButton(
+                text = "Cancel — Keep All",
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onDismiss
             )
         }
     }

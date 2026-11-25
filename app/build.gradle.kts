@@ -13,6 +13,14 @@ android {
         targetSdk     = 34
         versionCode   = 3
         versionName   = "3.0"
+
+        val gitSha = try {
+            providers.exec {
+                commandLine("git", "rev-parse", "--short", "HEAD")
+            }.standardOutput.asText.get().trim().ifEmpty { "local" }
+        } catch (_: Exception) { "local" }
+        buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
+        buildConfigField("long", "BUILD_TIME_MS", "${System.currentTimeMillis()}L")
     }
 
     signingConfigs {
@@ -55,7 +63,10 @@ android {
         }
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
 
     compileOptions {

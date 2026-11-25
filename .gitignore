@@ -1,16 +1,41 @@
-# Git ignore for Android / Kotlin / Gradle projects
+# Android / Kotlin / Gradle build artifacts
 .gradle/
+.kotlin/
 build/
-local.properties
-.idea/
-*.iml
-.DS_Store
-*.keystore
-!app/debug.keystore
-*.jks
+app/build/
 captures/
 .externalNativeBuild/
 .cxx/
-*.apk
-!app/build/outputs/apk/debug/*.apk
+artifacts/
+
+# Local environment & IDE files
+local.properties
+.idea/
+.vscode/
+*.iml
+*.hprof
+.DS_Store
+Thumbs.db
+
+# Signing keys & secrets (keep public debug keystore for local dev & CI fallback)
+*.keystore
+!app/debug.keystore
+*.jks
 google-services.json
+
+# Generated Android packages
+*.apk
+*.aab
+*.ap_
+
+# Local agent/workflow harness clutter (never commit to Android app repo)
+.agent/
+.agents/
+.gemini/
+.gsd/
+adapters/
+scripts/
+GSD-STYLE.md
+PROJECT_RULES.md
+VERSION
+model_capabilities.yaml

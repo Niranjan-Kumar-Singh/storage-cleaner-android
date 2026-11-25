@@ -1,14 +1,13 @@
 package com.example.storagecleaner.ui
 
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,80 +29,53 @@ import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecycleBinScreen(
     context: Context,
-    onBack:  () -> Unit
+    onBack: () -> Unit
 ) {
-    val scope   = rememberCoroutineScope()
-    var items   by remember { mutableStateOf(listOf<TrashItem>()) }
+    val pal = appPalette()
+    val scope = rememberCoroutineScope()
+    var items by remember { mutableStateOf(listOf<TrashItem>()) }
     var loading by remember { mutableStateOf(true) }
-    var msg     by remember { mutableStateOf("") }
+    var msg by remember { mutableStateOf("") }
+    var msgOk by remember { mutableStateOf(true) }
     var confirmEmpty by remember { mutableStateOf(false) }
 
-    // Load trash on start
+    val totalBytes = remember(items) { items.sumOf { it.size } }
+
     LaunchedEffect(Unit) {
         loading = true
-        items   = withContext(Dispatchers.IO) { RecycleBin.loadItems() }
+        items = withContext(Dispatchers.IO) { RecycleBin.loadItems() }
         loading = false
     }
 
     Scaffold(
+        containerColor = pal.Background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Recycle Bin", fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            "${items.size} items  •  ${fmt(RecycleBin.totalSize())}",
-                            fontSize = 11.sp,
-                            color    = MaterialTheme.colorScheme.onPrimary.copy(0.8f)
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onPrimary)
-                    }
-                },
+            SubScreenTopBar(
+                title = "Recycle Bin",
+                subtitle = "${items.size} items  •  ${fmt(totalBytes)}",
+                onBack = onBack,
                 actions = {
                     if (items.isNotEmpty()) {
                         IconButton(onClick = { confirmEmpty = true }) {
-                            Icon(Icons.Default.DeleteSweep, "Empty trash", tint = MaterialTheme.colorScheme.onPrimary)
+                            Icon(Icons.Default.DeleteSweep, "Empty bin", tint = pal.Danger)
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                }
             )
         }
     ) { pad ->
         Column(Modifier.fillMaxSize().padding(pad)) {
-            // Feedback
             if (msg.isNotEmpty()) {
-                Surface(
-                    color    = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(msg, Modifier.weight(1f), fontSize = 13.sp)
-                        IconButton(onClick = { msg = "" }, Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Close, null, Modifier.size(16.dp))
-                        }
-                    }
-                }
+                FeedbackBanner(msg = msg, ok = msgOk) { msg = "" }
             }
 
             when {
                 loading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = pal.Navy)
                     }
                 }
                 items.isEmpty() -> {
@@ -110,71 +83,88 @@ fun RecycleBinScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(
                                 modifier = Modifier
-                                    .size(72.dp)
+                                    .size(76.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary.copy(0.12f)),
+                                    .background(pal.Navy.copy(0.12f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.DeleteOutline,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = pal.Navy,
                                     modifier = Modifier.size(36.dp)
                                 )
                             }
-                            Spacer(Modifier.height(14.dp))
-                            Text("Recycle Bin is empty", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(16.dp))
+                            Text("Recycle Bin is Empty", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = pal.TextPrimary)
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                "Files moved to trash will appear here.\nYou can restore or permanently wipe them.",
+                                "Files moved to Trash stay here safely until you restore them or wipe them permanently.",
                                 fontSize = 13.sp,
-                                color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier  = Modifier.padding(horizontal = 32.dp)
+                                color = pal.TextSecond,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 36.dp)
                             )
                         }
                     }
                 }
                 else -> {
-                    LazyColumn(Modifier.weight(1f)) {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(vertical = 8.dp)
+                    ) {
                         items(items, key = { it.trashFile.path }) { trash ->
                             TrashItemRow(
-                                item      = trash,
+                                item = trash,
                                 onRestore = {
                                     scope.launch {
-                                        val ok = withContext(Dispatchers.IO) { RecycleBin.restore(trash) }
-                                        msg   = if (ok) "✅ Restored: ${trash.trashFile.name}" else "⚠️ Could not restore"
+                                        val ok = withContext(Dispatchers.IO) { RecycleBin.restore(trash, context) }
+                                        msgOk = ok
+                                        msg = if (ok) "Restored: ${trash.trashFile.name.substringAfter("_")}"
+                                        else "Could not restore file to original path"
                                         items = withContext(Dispatchers.IO) { RecycleBin.loadItems() }
                                     }
                                 },
-                                onDelete  = {
+                                onDelete = {
                                     scope.launch {
                                         val ok = withContext(Dispatchers.IO) { RecycleBin.deletePermanently(context, trash, secure = true) }
-                                        msg   = if (ok) "🔒 Permanently deleted" else "⚠️ Could not delete"
+                                        msgOk = ok
+                                        msg = if (ok) "Permanently wiped using DoD 3-pass engine"
+                                        else "Could not erase file"
                                         items = withContext(Dispatchers.IO) { RecycleBin.loadItems() }
                                     }
                                 }
                             )
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+                            HorizontalDivider(
+                                color = pal.DividerColor.copy(0.5f),
+                                thickness = 0.5.dp,
+                                modifier = Modifier.padding(start = 72.dp)
+                            )
                         }
                     }
 
-                    // Info banner
+                    // Bottom Dock with Info + Empty Trash CTA
                     Surface(
-                        color    = MaterialTheme.colorScheme.primaryContainer,
+                        color = pal.Surface,
+                        border = BorderStroke(1.dp, pal.DividerColor),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
-                            Modifier.padding(12.dp),
+                            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(Icons.Default.Info, null, Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Icon(Icons.Default.Shield, null, Modifier.size(18.dp), tint = pal.Navy)
                             Text(
-                                "Files in Recycle Bin still occupy storage. 'Permanently Delete' uses DoD 3-pass wipe.",
-                                fontSize = 11.sp,
-                                color    = MaterialTheme.colorScheme.onPrimaryContainer
+                                "Trash items still occupy storage until permanently wiped.",
+                                fontSize = 12.sp,
+                                color = pal.TextSecond,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CleanPrimaryButton(
+                                text = "Empty Bin",
+                                containerColor = pal.Danger,
+                                onClick = { confirmEmpty = true }
                             )
                         }
                     }
@@ -183,33 +173,41 @@ fun RecycleBinScreen(
         }
     }
 
-    // ── Empty-trash confirm ───────────────────────────────────────────────
     if (confirmEmpty) {
         AlertDialog(
             onDismissRequest = { confirmEmpty = false },
-            icon  = { Icon(Icons.Default.DeleteSweep, null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Empty recycle bin?", fontWeight = FontWeight.Bold) },
-            text  = {
+            containerColor = pal.CardBg,
+            icon = { Icon(Icons.Default.DeleteSweep, null, tint = pal.Danger) },
+            title = { Text("Empty Recycle Bin?", fontWeight = FontWeight.Bold, color = pal.TextPrimary) },
+            text = {
                 Text(
-                    "All ${items.size} items (${fmt(RecycleBin.totalSize())}) will be permanently wiped using DoD 3-pass secure delete. This cannot be undone.",
-                    fontSize = 14.sp
+                    "All ${items.size} items (${fmt(totalBytes)}) will be permanently wiped using DoD 5220.22-M 3-pass overwrite. This cannot be undone.",
+                    fontSize = 13.sp,
+                    color = pal.TextSecond
                 )
             },
-            dismissButton = {
-                OutlinedButton(onClick = { confirmEmpty = false }) { Text("Cancel") }
-            },
             confirmButton = {
-                Button(
-                    onClick = {
-                        confirmEmpty = false
-                        scope.launch {
-                            val n = withContext(Dispatchers.IO) { RecycleBin.emptyTrash(context) }
-                            msg   = "🔒 Emptied trash — $n items permanently deleted"
-                            items = emptyList()
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CleanOutlinedButton(
+                        text = "Cancel",
+                        modifier = Modifier.weight(1f),
+                        onClick = { confirmEmpty = false }
+                    )
+                    CleanPrimaryButton(
+                        text = "Empty All",
+                        containerColor = pal.Danger,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            confirmEmpty = false
+                            scope.launch {
+                                val n = withContext(Dispatchers.IO) { RecycleBin.emptyTrash(context) }
+                                msgOk = true
+                                msg = "Emptied Recycle Bin — $n items permanently erased"
+                                items = withContext(Dispatchers.IO) { RecycleBin.loadItems() }
+                            }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Empty Trash") }
+                    )
+                }
             }
         )
     }
@@ -217,6 +215,7 @@ fun RecycleBinScreen(
 
 @Composable
 private fun TrashItemRow(item: TrashItem, onRestore: () -> Unit, onDelete: () -> Unit) {
+    val pal = appPalette()
     Row(
         Modifier
             .fillMaxWidth()
@@ -225,51 +224,48 @@ private fun TrashItemRow(item: TrashItem, onRestore: () -> Unit, onDelete: () ->
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
+                .size(44.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .background(pal.CardBg),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = if (item.isDir) Icons.Default.Folder else Icons.Default.Description,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = pal.Navy,
                 modifier = Modifier.size(22.dp)
             )
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                item.trashFile.name.substringAfter("_"),   // strip timestamp prefix
-                fontSize   = 14.sp,
+                item.trashFile.name.substringAfter("_"),
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                maxLines   = 1,
-                overflow   = TextOverflow.Ellipsis,
-                color      = MaterialTheme.colorScheme.onSurface
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = pal.TextPrimary
             )
             Text(
-                "Originally: ${item.originalPath.removePrefix("/storage/emulated/0")}",
-                fontSize = 10.sp,
-                color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                "From: ${item.originalPath.removePrefix("/storage/emulated/0")}",
+                fontSize = 11.sp,
+                color = pal.TextSecond,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                "${fmt(item.size)}  •  Deleted ${DateFormat.getDateInstance().format(Date(item.deletedAt))}",
-                fontSize = 10.sp,
-                color    = MaterialTheme.colorScheme.onSurfaceVariant
+                "${fmt(item.size)}  •  ${DateFormat.getDateInstance().format(Date(item.deletedAt))}",
+                fontSize = 11.sp,
+                color = pal.AccentDark,
+                fontWeight = FontWeight.Medium
             )
         }
-        Spacer(Modifier.width(8.dp))
-        // Restore
-        IconButton(onClick = onRestore, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Default.Restore, "Restore", Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(6.dp))
+        IconButton(onClick = onRestore, modifier = Modifier.size(38.dp)) {
+            Icon(Icons.Default.Restore, "Restore", Modifier.size(20.dp), tint = pal.Navy)
         }
-        // Permanent delete
-        IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Default.DeleteForever, "Delete forever", Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.error)
+        IconButton(onClick = onDelete, modifier = Modifier.size(38.dp)) {
+            Icon(Icons.Default.DeleteForever, "Erase forever", Modifier.size(20.dp), tint = pal.Danger)
         }
     }
 }

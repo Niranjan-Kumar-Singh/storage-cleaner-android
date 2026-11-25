@@ -13,22 +13,17 @@ import java.security.SecureRandom
  * DoD 5220.22-M 3-pass secure wipe:
  *  Pass 1 – overwrite with 0x00
  *  Pass 2 – overwrite with 0xFF
- *  Pass 3 – cryptographically random bytes (SecureRandom)
+ *  Pass 3 – cryptographically random bytes (SecureRandom) + length truncation to 0
  *
- * Falls back to standard OS delete if any pass fails (e.g. file already
- * locked or on a file-system that doesn't support in-place writes).
- *
- * Note: on modern flash/eMMC the OS routes writes through wear-levelling
- * (FTL), so physical recovery is extremely unlikely but cannot be 100%
- * ruled out at the hardware level.  This is the best achievable from
- * Android user-space.
+ * Falls back to standard OS delete if any pass fails (e.g. file locked or
+ * read-only file-system). System-protected paths are always rejected.
  */
 object SecureDelete {
 
     private val rng = SecureRandom()
 
     enum class Mode {
-        /** 3-pass DoD overwrite + delete */
+        /** 3-pass DoD overwrite + truncate + delete */
         SECURE_WIPE,
         /** Plain OS delete — no overwriting, fastest */
         STANDARD_DELETE
@@ -44,11 +39,16 @@ object SecureDelete {
 
     // ─── Low-level file wipe ─────────────────────────────────────────────
     /**
-     * Returns true if fully secure-wiped, false if fell back to plain delete.
+     * Overwrites [f] cleanly and deletes it.
+     * Returns true if full 3-pass overwrite succeeded, false if fell back to plain delete.
      */
-    private fun wipeFile(f: File): Boolean {
+    internal fun wipeFile(f: File): Boolean {
+        if (!f.exists()) return true
         val len = f.length()
-        if (len <= 0L) { f.delete(); return true }
+        if (!f.canWrite()) {
+            try { f.setWritable(true) } catch (_: Exception) { }
+        }
+        if (len <= 0L) return f.delete()
 
         var wiped = false
         try {
@@ -67,13 +67,15 @@ object SecureDelete {
 
                 overwriteWith(0x00.toByte())   // Pass 1 – zeros
                 overwriteWith(0xFF.toByte())   // Pass 2 – ones
-                overwriteWith()                // Pass 3 – random
+                overwriteWith()                // Pass 3 – cryptographically random
+                raf.setLength(0L)
+                raf.fd.sync()
                 wiped = true
             }
-        } catch (_: Exception) { /* will fall through to plain delete */ }
+        } catch (_: Exception) { /* falls through to plain delete */ }
 
-        f.delete()
-        return wiped
+        val deleted = f.delete()
+        return wiped && deleted
     }
 
     private fun wipeDir(dir: File): Boolean {
@@ -82,7 +84,7 @@ object SecureDelete {
             if (f.isFile) { if (!wipeFile(f)) allWiped = false }
             else f.delete()
         }
-        return allWiped
+        return allWiped && !dir.exists()
     }
 
     private fun deleteFileStandard(f: File): Boolean =
@@ -92,16 +94,17 @@ object SecureDelete {
     /**
      * Delete [targets] with the chosen [mode].
      * - Secure wipe falls back to standard delete automatically if wipe fails.
-     * - System-protected paths are always skipped.
+     * - System-protected paths (including traversal attempts) are always skipped.
      */
     fun deleteAll(
-        context: Context,
+        context: Context?,
         targets: List<String>,
         dirSizes: Map<String, Long>,
         mode: Mode = Mode.SECURE_WIPE,
         onProgress: (String) -> Unit
     ): DeleteResult {
-        val topLevel = targets.filter { !covered(parentOf(it), targets.toSet()) }
+        val targetSet = targets.map { it.replace('\\', '/') }.toSet()
+        val topLevel = targets.filter { !covered(parentOf(it), targetSet) }
         var deleted = 0; var failed = 0; var freed = 0L
         var secureWiped = 0; var standardDeleted = 0
 
@@ -118,7 +121,6 @@ object SecureDelete {
                     val wiped = try {
                         if (f.isDirectory) wipeDir(f) else wipeFile(f)
                     } catch (_: Exception) { false }
-                    // If wipe left the file, attempt plain delete as last resort
                     val finallyGone = !File(path).exists() ||
                         try { deleteFileStandard(File(path)) } catch (_: Exception) { false }
                     Pair(finallyGone, wiped && finallyGone)
@@ -137,10 +139,11 @@ object SecureDelete {
             }
         }
 
-        // Notify MediaStore that these paths are gone
-        try {
-            MediaScannerConnection.scanFile(context, topLevel.toTypedArray(), null, null)
-        } catch (_: Exception) { }
+        if (context != null) {
+            try {
+                MediaScannerConnection.scanFile(context, topLevel.toTypedArray(), null, null)
+            } catch (_: Exception) { }
+        }
 
         return DeleteResult(deleted, failed, freed, secureWiped, standardDeleted)
     }

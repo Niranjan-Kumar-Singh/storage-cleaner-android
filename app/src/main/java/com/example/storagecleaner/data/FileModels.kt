@@ -52,7 +52,7 @@ val SYSTEM_PROTECTED_PATHS = setOf(
 
 /** Partial path segments that signal system/important content */
 val SYSTEM_PATH_SEGMENTS = setOf(
-    "/android/data/", "/android/obb/", "/proc/", "/sys/", "/dev/",
+    "/android/data/", "/android/obb/", "/.android_secure/", "/proc/", "/sys/", "/dev/",
     "/system/", "/vendor/", "/odm/"
 )
 
