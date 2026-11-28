@@ -11,6 +11,7 @@ import android.content.SharedPreferences
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.storagecleaner.MainActivity
+import com.example.storagecleaner.R
 import java.text.DateFormat
 import java.util.Date
 
@@ -127,7 +128,7 @@ object ReminderManager {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_delete)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Storage Cleaner")
             .setContentText("It's time to scan your storage and remove duplicate or junk files.")
             .setStyle(

@@ -16,12 +16,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,28 +46,28 @@ data class AppPalette(
     val GlowIndigo: Color, val GlowCyan: Color
 )
 
-// ─── Light palette (Crisp Alabaster & Deep Cobalt, WCAG AA+ verified) ──────
+// ─── Light palette (Crisp Porcelain & Authoritative Sapphire, WCAG AA+) ──
 val LightPalette = AppPalette(
-    Navy         = Color(0xFF3653C9), NavyLight  = Color(0xFF5C7CFA), NavyDark = Color(0xFF283E9E),
-    PrimaryText  = Color(0xFF2F4AC4),
+    Navy         = Color(0xFF1D4ED8), NavyLight  = Color(0xFF3B82F6), NavyDark = Color(0xFF1E40AF),
+    PrimaryText  = Color(0xFF1D4ED8),
     Accent       = Color(0xFF0F766E), AccentDark = Color(0xFF0F766E),
     Surface      = Color(0xFFFFFFFF), Background = Color(0xFFF4F6FA), CardBg   = Color(0xFFFFFFFF),
     Danger       = Color(0xFFDC2626), DangerLight= Color(0xFFFFE4E6), Warning  = Color(0xFFB45309), Success = Color(0xFF047857),
     TextPrimary  = Color(0xFF0F172A), TextSecond = Color(0xFF475569), DividerColor = Color(0xFFE2E8F0),
-    StorageBar   = Color(0xFF3653C9), StorageFree = Color(0xFFE2E8F0),
-    GlowIndigo   = Color(0xFF748FFC), GlowCyan   = Color(0xFF0D9488)
+    StorageBar   = Color(0xFF1D4ED8), StorageFree = Color(0xFFE2E8F0),
+    GlowIndigo   = Color(0xFF60A5FA), GlowCyan   = Color(0xFF0D9488)
 )
 
-// ─── Dark palette (Midnight Obsidian & Electric Cobalt / Teal) ────────────
+// ─── Dark palette (Midnight Obsidian & Electric Sapphire / Teal) ──────────
 val DarkPalette = AppPalette(
-    Navy         = Color(0xFF4263EB), NavyLight  = Color(0xFF748FFC), NavyDark = Color(0xFF364FC7),
-    PrimaryText  = Color(0xFF829BFF),
+    Navy         = Color(0xFF2563EB), NavyLight  = Color(0xFF60A5FA), NavyDark = Color(0xFF1D4ED8),
+    PrimaryText  = Color(0xFF60A5FA),
     Accent       = Color(0xFF0D9488), AccentDark = Color(0xFF2DD4BF),
     Surface      = Color(0xFF111622), Background = Color(0xFF090C12), CardBg   = Color(0xFF161D2D),
     Danger       = Color(0xFFE11D48), DangerLight= Color(0xFF3B0715), Warning  = Color(0xFFFBBF24), Success = Color(0xFF10B981),
     TextPrimary  = Color(0xFFF8FAFC), TextSecond = Color(0xFF94A3B8), DividerColor = Color(0xFF232D42),
-    StorageBar   = Color(0xFF4263EB), StorageFree = Color(0xFF1E293B),
-    GlowIndigo   = Color(0xFF91A7FF), GlowCyan   = Color(0xFF2DD4BF)
+    StorageBar   = Color(0xFF2563EB), StorageFree = Color(0xFF1E293B),
+    GlowIndigo   = Color(0xFF60A5FA), GlowCyan   = Color(0xFF2DD4BF)
 )
 
 val LocalAppPalette = staticCompositionLocalOf { DarkPalette }
@@ -272,7 +277,16 @@ fun StorageBar(label: String, used: Long, total: Long, modifier: Modifier = Modi
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(label, fontSize = 14.sp, color = pal.TextPrimary, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = label,
+                fontSize = 14.sp,
+                color = pal.TextPrimary,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            Spacer(Modifier.width(8.dp))
             Surface(
                 shape = RoundedCornerShape(6.dp),
                 color = barColor.copy(alpha = 0.14f)
@@ -282,6 +296,7 @@ fun StorageBar(label: String, used: Long, total: Long, modifier: Modifier = Modi
                     fontSize = 11.sp,
                     color = barColor,
                     fontWeight = FontWeight.Bold,
+                    style = TextStyle(fontFeatureSettings = "tnum"),
                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                 )
             }
@@ -303,8 +318,21 @@ fun StorageBar(label: String, used: Long, total: Long, modifier: Modifier = Modi
         }
         Spacer(Modifier.height(6.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${fmt(used)} used", fontSize = 12.sp, color = pal.TextSecond)
-            Text("${fmt((total - used).coerceAtLeast(0L))} free", fontSize = 12.sp, color = pal.TextPrimary, fontWeight = FontWeight.Medium)
+            Text(
+                "${fmt(used)} used",
+                fontSize = 12.sp,
+                color = pal.TextSecond,
+                style = TextStyle(fontFeatureSettings = "tnum"),
+                maxLines = 1
+            )
+            Text(
+                "${fmt((total - used).coerceAtLeast(0L))} free",
+                fontSize = 12.sp,
+                color = pal.TextPrimary,
+                fontWeight = FontWeight.Medium,
+                style = TextStyle(fontFeatureSettings = "tnum"),
+                maxLines = 1
+            )
         }
     }
 }
@@ -389,10 +417,10 @@ fun CleanSearchField(
                 )
             }
             if (query.isNotEmpty()) {
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(4.dp))
                 IconButton(
                     onClick = { onQueryChange("") },
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(44.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -420,7 +448,7 @@ fun FeedbackBanner(msg: String, ok: Boolean, onDismiss: () -> Unit) {
         border = BorderStroke(1.dp, accent.copy(alpha = 0.28f))
     ) {
         Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -437,9 +465,62 @@ fun FeedbackBanner(msg: String, ok: Boolean, onDismiss: () -> Unit) {
                 color = pal.TextPrimary,
                 fontWeight = FontWeight.Medium
             )
-            IconButton(onClick = onDismiss, Modifier.size(26.dp)) {
+            IconButton(onClick = onDismiss, Modifier.size(44.dp)) {
                 Icon(Icons.Default.Close, contentDescription = "Dismiss", Modifier.size(16.dp), tint = pal.TextSecond)
             }
+        }
+    }
+}
+
+/** Brand emblem matching the adaptive launcher icon (Sapphire shield + Teal sweep + Checkmark). */
+@Composable
+fun BrandShieldMark(modifier: Modifier = Modifier) {
+    val pal = appPalette()
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF090C12)),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize().padding(5.dp)) {
+            val w = size.width
+            val h = size.height
+            // Outer orbital teal arc
+            drawArc(
+                color = pal.AccentDark,
+                startAngle = -140f,
+                sweepAngle = 225f,
+                useCenter = false,
+                style = Stroke(width = w * 0.085f, cap = StrokeCap.Round)
+            )
+            // Shield body
+            val shield = Path().apply {
+                moveTo(w * 0.50f, h * 0.14f)
+                lineTo(w * 0.82f, h * 0.27f)
+                cubicTo(w * 0.82f, h * 0.54f, w * 0.69f, h * 0.77f, w * 0.50f, h * 0.88f)
+                cubicTo(w * 0.31f, h * 0.77f, w * 0.18f, h * 0.54f, w * 0.18f, h * 0.27f)
+                close()
+            }
+            drawPath(shield, color = pal.Navy)
+            // Faceted right highlight
+            val highlight = Path().apply {
+                moveTo(w * 0.50f, h * 0.18f)
+                lineTo(w * 0.77f, h * 0.29f)
+                cubicTo(w * 0.77f, h * 0.52f, w * 0.66f, h * 0.72f, w * 0.50f, h * 0.82f)
+                close()
+            }
+            drawPath(highlight, color = Color.White.copy(alpha = 0.16f))
+            // Checkmark
+            val check = Path().apply {
+                moveTo(w * 0.36f, h * 0.52f)
+                lineTo(w * 0.46f, h * 0.62f)
+                lineTo(w * 0.66f, h * 0.41f)
+            }
+            drawPath(
+                check,
+                color = Color.White,
+                style = Stroke(width = w * 0.095f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            )
         }
     }
 }

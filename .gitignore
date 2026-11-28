@@ -29,10 +29,12 @@ google-services.json
 *.ap_
 
 # Local agent/workflow harness clutter (never commit to Android app repo)
+.adk/
 .agent/
 .agents/
 .gemini/
 .gsd/
+kotlin/
 adapters/
 scripts/
 GSD-STYLE.md

@@ -41,7 +41,7 @@ fun getKindVisual(kind: Int, isDark: Boolean = true): KindVisual {
         KIND_VIDEO   -> if (isDark) Color(0xFFFB7185) else Color(0xFFE11D48)
         KIND_AUDIO   -> if (isDark) Color(0xFF34D399) else Color(0xFF059669)
         KIND_DOC     -> if (isDark) Color(0xFFFBBF24) else Color(0xFFD97706)
-        KIND_ARCHIVE -> if (isDark) Color(0xFFC084FC) else Color(0xFF7C3AED)
+        KIND_ARCHIVE -> if (isDark) Color(0xFF818CF8) else Color(0xFF4F46E5)
         KIND_APK     -> if (isDark) Color(0xFFA3E635) else Color(0xFF4D7C0F)
         else         -> if (isDark) Color(0xFF94A3B8) else Color(0xFF475569)
     }

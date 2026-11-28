@@ -364,4 +364,53 @@ class CoreScenarioTest {
         assertEquals("1.5 MB", fmt((1.5 * 1024 * 1024).toLong()))
         assertEquals("2.0 GB", fmt((2.0 * 1024 * 1024 * 1024).toLong()))
     }
+
+    // ── Scenario 16: Folder Exclusions & Case-Insensitive Path Guards ────────
+    @Test
+    fun testFolderExclusionsAndCaseInsensitiveGuards() {
+        // Case-insensitive system paths & Android/media guard
+        assertTrue(isSystemPath("/storage/emulated/0/android/data/com.app"))
+        assertTrue(isSystemPath("/storage/emulated/0/Android/media/com.whatsapp"))
+
+        val root = tempFolder.newFolder("exclusion_root")
+        val keepDir = File(root, "Keep").apply { mkdirs() }
+        val skipDir = File(root, "OfflineMusic").apply { mkdirs() }
+        val keptFile = File(keepDir, "track.mp3").apply { writeBytes(ByteArray(1200) { 1 }) }
+        val skippedFile = File(skipDir, "cached.mp3").apply { writeBytes(ByteArray(1200) { 1 }) }
+
+        assertTrue(isExcludedPath(skippedFile.path, setOf(skipDir.path)))
+        assertFalse(isExcludedPath(keptFile.path, setOf(skipDir.path)))
+
+        val res = scan(listOf(root), excludedPaths = setOf(skipDir.path)) { }
+        assertTrue(res.files.any { it.path == keptFile.path })
+        assertFalse("Excluded folder files must not be scanned", res.files.any { it.path == skippedFile.path })
+        assertTrue("Excluded copy must not flag duplicate", res.duplicates.isEmpty())
+    }
+
+    // ── Scenario 17: Directory Sizes & Child Resolution ──────────────────────
+    @Test
+    fun testDirSizesAndFolderChildren() {
+        val root = tempFolder.newFolder("tree_root")
+        val sub = File(root, "Photos").apply { mkdirs() }
+        val f1 = File(sub, "a.jpg").apply { writeBytes(ByteArray(1500)) }
+        val f2 = File(sub, "b.jpg").apply { writeBytes(ByteArray(2500)) }
+
+        val res = scan(listOf(root)) { }
+        val sizes = dirSizes(res.files)
+        assertEquals(4000L, sizes[sub.path.replace('\\', '/')])
+        assertEquals(4000L, sizes[root.path.replace('\\', '/')])
+
+        val children = folderChildren(sub.path, res, sizes, listOf(root))
+        assertEquals(2, children.size)
+        assertTrue(children.any { it.path == f1.path })
+        assertTrue(children.any { it.path == f2.path })
+    }
+
+    // ── Scenario 18: Covered Ancestor Deduplication Logic ────────────────────
+    @Test
+    fun testParentChildCoverageDeduplication() {
+        val sel = setOf("/storage/emulated/0/Downloads/temp", "/storage/emulated/0/Downloads/temp/nested.tmp")
+        val topLevel = sel.filter { !covered(parentOf(it), sel) }
+        assertEquals(listOf("/storage/emulated/0/Downloads/temp"), topLevel)
+    }
 }

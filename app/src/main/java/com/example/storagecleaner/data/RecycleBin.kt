@@ -26,6 +26,7 @@ object RecycleBin {
 
     private const val TRASH_DIR_NAME = ".StorageCleaner_Trash"
     private const val META_NAME      = ".metadata.json"
+    private val lock = Any()
 
     private val trashDir: File
         get() = File(Environment.getExternalStorageDirectory(), TRASH_DIR_NAME).also { it.mkdirs() }
@@ -34,7 +35,7 @@ object RecycleBin {
         get() = File(trashDir, META_NAME)
 
     // ── Load / save metadata ────────────────────────────────────────────
-    fun loadItems(): List<TrashItem> {
+    fun loadItems(): List<TrashItem> = synchronized(lock) {
         val f = metaFile
         if (!f.exists()) return emptyList()
         return try {
@@ -53,19 +54,26 @@ object RecycleBin {
         } catch (_: Exception) { emptyList() }
     }
 
-    private fun saveItems(items: List<TrashItem>) {
+    private fun saveItems(items: List<TrashItem>) = synchronized(lock) {
         val arr = JSONArray()
         for (item in items) {
             arr.put(JSONObject().apply {
                 put("trashName",    item.trashFile.name)
                 put("originalPath", item.originalPath)
-                put("deletedAt",   item.deletedAt)
-                put("size",        item.size)
-                put("isDir",       item.isDir)
+                put("deletedAt",    item.deletedAt)
+                put("size",         item.size)
+                put("isDir",        item.isDir)
             })
         }
-        try { metaFile.writeText(JSONObject().apply { put("entries", arr) }.toString(2)) }
-        catch (_: Exception) { }
+        try {
+            val payload = JSONObject().apply { put("entries", arr) }.toString(2)
+            val tmp = File(trashDir, "$META_NAME.tmp")
+            tmp.writeText(payload)
+            if (!tmp.renameTo(metaFile)) {
+                metaFile.writeText(payload)
+                tmp.delete()
+            }
+        } catch (_: Exception) { }
     }
 
     /**
@@ -116,7 +124,7 @@ object RecycleBin {
     }
 
     // ── Move a file or directory to trash ──────────────────────────────
-    fun moveToTrash(file: File, context: Context? = null): Boolean {
+    fun moveToTrash(file: File, context: Context? = null): Boolean = synchronized(lock) {
         return try {
             if (!file.exists() || isSystemPath(file.path)) return false
             val now       = System.currentTimeMillis()
@@ -134,8 +142,35 @@ object RecycleBin {
         } catch (_: Exception) { false }
     }
 
+    /**
+     * Moves multiple targets to trash while deduplicating nested children when their
+     * parent folder is also selected so counts stay accurate.
+     */
+    fun moveManyToTrash(targets: List<String>, context: Context? = null): Pair<Int, Int> {
+        val targetSet = targets.map { it.replace('\\', '/') }.toSet()
+        val topLevel = targets.filter { !covered(parentOf(it), targetSet) }
+        var moved = 0
+        var failed = 0
+        for (path in topLevel) {
+            if (moveToTrash(File(path), context)) moved++ else failed++
+        }
+        return moved to failed
+    }
+
+    /** Automatically permanently erases items older than [retentionDays]. Returns count wiped. */
+    fun purgeExpired(ctx: Context, retentionDays: Int): Int {
+        if (retentionDays <= 0) return 0
+        val cutoffMs = System.currentTimeMillis() - retentionDays * 24L * 60L * 60L * 1000L
+        val expired = loadItems().filter { it.deletedAt in 1L..cutoffMs }
+        var purged = 0
+        for (item in expired) {
+            if (deletePermanently(ctx, item, secure = true)) purged++
+        }
+        return purged
+    }
+
     // ── Restore from trash ─────────────────────────────────────────────
-    fun restore(item: TrashItem, context: Context? = null): Boolean {
+    fun restore(item: TrashItem, context: Context? = null): Boolean = synchronized(lock) {
         return try {
             val dest = uniqueDestination(File(item.originalPath))
             val ok = moveSafely(item.trashFile, dest)
@@ -157,7 +192,7 @@ object RecycleBin {
     }
 
     // ── Permanently delete one item from trash ─────────────────────────
-    fun deletePermanently(ctx: Context, item: TrashItem, secure: Boolean = true): Boolean {
+    fun deletePermanently(ctx: Context, item: TrashItem, secure: Boolean = true): Boolean = synchronized(lock) {
         return try {
             val result = SecureDelete.deleteAll(
                 context    = ctx,
@@ -177,7 +212,7 @@ object RecycleBin {
     }
 
     // ── Empty entire trash ─────────────────────────────────────────────
-    fun emptyTrash(ctx: Context, secure: Boolean = true): Int {
+    fun emptyTrash(ctx: Context, secure: Boolean = true): Int = synchronized(lock) {
         val items = loadItems(); var count = 0
         for (item in items) { if (deletePermanently(ctx, item, secure)) count++ }
         try { metaFile.delete() } catch (_: Exception) { }

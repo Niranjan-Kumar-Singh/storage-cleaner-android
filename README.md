@@ -5,9 +5,9 @@
 <br/>
 
 [![Build & Release APK](https://github.com/Niranjan-Kumar-Singh/storage-cleaner-android/actions/workflows/build.yml/badge.svg?style=for-the-badge)](https://github.com/Niranjan-Kumar-Singh/storage-cleaner-android/actions/workflows/build.yml)
-[![Latest Release](https://img.shields.io/github/v/release/Niranjan-Kumar-Singh/storage-cleaner-android?include_prereleases&style=for-the-badge&color=3653C9&label=Download%20APK)](https://github.com/Niranjan-Kumar-Singh/storage-cleaner-android/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/Niranjan-Kumar-Singh/storage-cleaner-android?include_prereleases&style=for-the-badge&color=2563EB&label=Download%20APK)](https://github.com/Niranjan-Kumar-Singh/storage-cleaner-android/releases/latest)
 ![Android](https://img.shields.io/badge/Android-11%2B%20(API%2030--34)-10B981?style=for-the-badge&logo=android&logoColor=white)
-![Kotlin](https://img.shields.io/badge/Kotlin-1.9%20%7C%20Compose%20M3-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-1.9%20%7C%20Compose%20M3-2563EB?style=for-the-badge&logo=kotlin&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-0F766E?style=for-the-badge)](LICENSE)
 
 </div>
@@ -78,18 +78,18 @@ sequenceDiagram
 <td width="50%" valign="top">
 
 ### Smart Storage Analysis
-- **Multi-Volume Indexer**: Scans internal storage and external SD cards with live progress & instant scan cancellation.
+- **Multi-Volume Indexer**: Scans internal storage and external SD cards with live progress, folder exclusion rules, & instant scan cancellation.
 - **16 Category Pills**: `Folders`, `All files`, `Large (50MB+)`, `Duplicates`, `Images`, `Videos`, `Audio`, `Docs`, `Archives`, `APKs`, `Downloads`, `Screenshots`, `Chat media`, `Junk files`, `Old files`, and `Empty folders`.
-- **Quick Clean Highlights**: Surfaces safe wins (junk caches, duplicate copies, residual APKs, empty folders) right below the hero storage meter.
-- **Animated Storage Donut**: Breakdown across all 7 file types directly inside the collapsible dashboard card.
+- **1-Tap Duplicate Copy Selection**: Select all redundant duplicate copies while keeping oldest originals, or compare individual copies in a bottom sheet.
+- **Recycle Bin with Multi-Select & Auto-Purge**: Preview, search, batch restore/erase, and configure automatic retention (`7 / 14 / 30 days` or forever).
 
 </td>
 <td width="50%" valign="top">
 
 ### Previews, Apps & Updates
-- **EXIF & Video Thumbnails**: Properly rotated JPEG previews, live MP4/MKV thumbnail frames, and scrollable text previews for `.txt`, `.log`, `.json`, `.xml`, and `.csv`.
-- **Duplicate Compare Sheet**: Compares all copies (`2+` identical files), lets you preview any copy on tap, or wipe all redundant copies keeping the oldest original.
-- **App Manager**: Displays native launcher icons + APK sizes for installed user & system apps with one-tap deep links to System Cache settings.
+- **EXIF, Video & APK Previews**: Rotated JPEG previews, live MP4/MKV thumbnails, real extracted APK icons + package versions, and scrollable text/log previews.
+- **App Manager with Cache Analytics**: Displays launcher icons and base APK sizes by default, or full **App + Data + Cache sizes** via optional Android `Usage Access` (`StorageStatsManager`).
+- **Quick Clean Highlights & Storage Donut**: Surfaces safe cleanup wins and animated category distribution right inside the hero card.
 - **Built-In Update Checker**: Queries GitHub Releases (`api.github.com`) only on demand and compares SemVer tags or CI build commits.
 
 </td>
@@ -106,8 +106,8 @@ Built for WCAG AA+ readability with dynamic status & navigation bar synchronizat
 | :--- | :--- | :--- | :--- |
 | **Canvas** | `#090C12` | `#F4F6FA` | Main OLED / Porcelain backdrop |
 | **Card Surface** | `#161D2D` | `#FFFFFF` | Elevated bento containers & sheets |
-| **Primary Action** | `#4263EB` | `#3653C9` | High-contrast Cobalt CTA fills |
-| **Teal Accent** | `#2DD4BF` | `#0F766E` | Storage progress & highlights |
+| **Primary Action** | `#2563EB` | `#1D4ED8` | High-contrast Sapphire CTA fills |
+| **Teal Accent** | `#14B8A6` | `#0F766E` | Storage progress & highlights |
 | **Destructive** | `#E11D48` | `#DC2626` | Secure Wipe & empty-bin actions |
 
 ---
@@ -133,9 +133,10 @@ Built for WCAG AA+ readability with dynamic status & navigation bar synchronizat
 app/src/main/java/com/example/storagecleaner/
 ├── MainActivity.kt              # Root state, dynamic system bars, dashboard & file browser
 ├── data/
+│   ├── ExclusionManager.kt      # Persistent excluded folder rules & Trash auto-purge retention
 │   ├── FileModels.kt            # File kinds, tag bitmasks, protected OS path constants
 │   ├── Scanner.kt               # Cancellable storage walker, 2-stage SHA-256 finder, lexical path guard
-│   ├── RecycleBin.kt            # Cross-volume soft delete, collision-safe restore & MediaStore sync
+│   ├── RecycleBin.kt            # Cross-volume soft delete, atomic metadata, batch restore/purge
 │   ├── ReminderManager.kt       # Notification alarm manager + reboot reschedule receiver
 │   └── UpdateChecker.kt         # Zero-dependency JSON parser & GitHub Releases checker
 ├── security/

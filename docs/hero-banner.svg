@@ -6,13 +6,17 @@
       <stop offset="100%" stop-color="#111B2E"/>
     </linearGradient>
     <linearGradient id="accentGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#4263EB"/>
+      <stop offset="0%" stop-color="#2563EB"/>
       <stop offset="100%" stop-color="#14B8A6"/>
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
     </linearGradient>
     <linearGradient id="sweepGrad" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#2DD4BF" stop-opacity="0"/>
       <stop offset="50%" stop-color="#2DD4BF" stop-opacity="0.32"/>
-      <stop offset="100%" stop-color="#4263EB" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#2563EB" stop-opacity="0"/>
     </linearGradient>
     <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
       <circle cx="1.5" cy="1.5" r="1" fill="#232D42" opacity="0.65"/>
@@ -33,19 +37,20 @@
     </rect>
   </g>
 
-  <!-- Left Animated Shield Emblem -->
+  <!-- Left Animated Shield Emblem matching app adaptive icon -->
   <g transform="translate(88, 62)">
-    <!-- Rotating Orbital Ring -->
-    <circle cx="62" cy="62" r="56" stroke="url(#accentGrad)" stroke-width="1.5" stroke-dasharray="10 8" opacity="0.65">
+    <circle cx="62" cy="62" r="56" stroke="url(#accentGrad)" stroke-width="1.75" stroke-dasharray="10 8" opacity="0.72">
       <animateTransform attributeName="transform" type="rotate" from="0 62 62" to="360 62 62" dur="18s" repeatCount="indefinite"/>
     </circle>
-    <circle cx="62" cy="62" r="46" fill="#161D2D" stroke="#232D42" stroke-width="1.5"/>
-    <!-- Shield Shape -->
-    <path d="M62 28 L90 40 C90 61 78 82 62 94 C46 82 34 61 34 40 Z" fill="url(#accentGrad)" opacity="0.92"/>
-    <path d="M62 34 L84 43 C84 59 75 76 62 86 Z" fill="#FFFFFF" opacity="0.16"/>
-    <!-- Animated Check / Spark -->
+    <circle cx="62" cy="62" r="46" fill="#111827" stroke="#2563EB" stroke-opacity="0.45" stroke-width="1.5"/>
+    <!-- Faceted Sapphire Shield -->
+    <path d="M62 28 L90 40 C90 61 78 82 62 94 C46 82 34 61 34 40 Z" fill="url(#shieldGrad)"/>
+    <path d="M62 32 L86 42 C86 60 76 78 62 88 Z" fill="#FFFFFF" opacity="0.16"/>
+    <!-- Teal Sweep Arc -->
+    <path d="M27 52 A37 37 0 0 1 95 48" stroke="#14B8A6" stroke-width="3.5" stroke-linecap="round" fill="none" opacity="0.9"/>
+    <!-- Animated Checkmark -->
     <path d="M51 62 L59 70 L75 53" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <animate attributeName="opacity" values="0.7;1;0.7" dur="2.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.78;1;0.78" dur="2.5s" repeatCount="indefinite"/>
     </path>
   </g>
 
@@ -67,8 +72,8 @@
   </text>
 
   <!-- Feature Pills -->
-  <rect x="520" y="158" width="110" height="30" rx="15" fill="#3653C9" opacity="0.22" stroke="#4263EB" stroke-width="1"/>
-  <text x="575" y="177" text-anchor="middle" fill="#91A7FF" font-family="Inter, sans-serif" font-size="11.5" font-weight="700">SHA-256</text>
+  <rect x="520" y="158" width="110" height="30" rx="15" fill="#1D4ED8" opacity="0.25" stroke="#2563EB" stroke-width="1"/>
+  <text x="575" y="177" text-anchor="middle" fill="#60A5FA" font-family="Inter, sans-serif" font-size="11.5" font-weight="700">SHA-256</text>
 
   <rect x="642" y="158" width="128" height="30" rx="15" fill="#0F766E" opacity="0.25" stroke="#14B8A6" stroke-width="1"/>
   <text x="706" y="177" text-anchor="middle" fill="#2DD4BF" font-family="Inter, sans-serif" font-size="11.5" font-weight="700">3-PASS WIPE</text>

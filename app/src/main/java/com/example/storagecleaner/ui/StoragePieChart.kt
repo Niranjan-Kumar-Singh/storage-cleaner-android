@@ -13,6 +13,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -23,12 +24,12 @@ import com.example.storagecleaner.data.fmt
 
 private val SEGMENT_COLORS = listOf(
     Color(0xFF64748B),  // Other    – Slate
-    Color(0xFF38BDF8),  // Images   – Sky
+    Color(0xFF0EA5E9),  // Images   – Sky
     Color(0xFFF43F5E),  // Videos   – Rose
     Color(0xFF10B981),  // Audio    – Emerald
     Color(0xFFF59E0B),  // Docs     – Amber
-    Color(0xFFA855F7),  // Archives – Violet
-    Color(0xFF4F6EF7),  // APKs     – Cobalt
+    Color(0xFF14B8A6),  // Archives – Teal
+    Color(0xFF2563EB),  // APKs     – Sapphire
 )
 
 @Composable
@@ -85,7 +86,8 @@ fun StoragePieChart(
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     color = pal.TextPrimary,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    style = TextStyle(fontFeatureSettings = "tnum")
                 )
                 Text(
                     text = "analyzed",
@@ -134,7 +136,8 @@ fun StoragePieChart(
                                     Text(
                                         fmt(kindBytes[idx]),
                                         fontSize = 11.sp,
-                                        color = pal.TextSecond
+                                        color = pal.TextSecond,
+                                        style = TextStyle(fontFeatureSettings = "tnum")
                                     )
                                 }
                             }

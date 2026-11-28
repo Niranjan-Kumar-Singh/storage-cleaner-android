@@ -31,10 +31,12 @@ import com.example.storagecleaner.BuildConfig
 fun AppDrawerContent(
     currentScreen: String,
     trashCount: Int,
+    excludedCount: Int,
     themeMode: String,
     onSelectScreen: (String) -> Unit,
     onThemeModeChange: (String) -> Unit,
     onShowReminders: () -> Unit,
+    onShowExclusions: () -> Unit,
     onCheckUpdates: () -> Unit,
     onCloseDrawer: () -> Unit
 ) {
@@ -44,7 +46,7 @@ fun AppDrawerContent(
     ModalDrawerSheet(
         drawerContainerColor = pal.Surface,
         drawerContentColor = pal.TextPrimary,
-        modifier = Modifier.width(310.dp)
+        modifier = Modifier.widthIn(min = 270.dp, max = 310.dp)
     ) {
         Column(
             modifier = Modifier
@@ -59,20 +61,7 @@ fun AppDrawerContent(
                     .padding(horizontal = 20.dp, vertical = 6.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(pal.Navy),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CleaningServices,
-                            contentDescription = "Logo",
-                            tint = Color.White,
-                            modifier = Modifier.size(25.dp)
-                        )
-                    }
+                    BrandShieldMark(modifier = Modifier.size(46.dp))
                     Spacer(Modifier.width(14.dp))
                     Column {
                         Text(
@@ -158,11 +147,23 @@ fun AppDrawerContent(
             DrawerNavItem(
                 icon = Icons.Outlined.Apps,
                 label = "App Manager",
-                sublabel = "View app sizes & clear cache",
+                sublabel = "View app storage, cache & settings",
                 isSelected = currentScreen == "AppCache",
                 onClick = {
                     onSelectScreen("AppCache")
                     onCloseDrawer()
+                }
+            )
+
+            DrawerNavItem(
+                icon = Icons.Default.FolderOff,
+                label = "Excluded Folders",
+                sublabel = if (excludedCount == 0) "No paths excluded" else "$excludedCount folder(s) skipped",
+                badgeText = if (excludedCount > 0) "$excludedCount" else null,
+                isSelected = false,
+                onClick = {
+                    onCloseDrawer()
+                    onShowExclusions()
                 }
             )
 
@@ -412,20 +413,7 @@ fun AboutAppDialog(
         containerColor = pal.CardBg,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(pal.Navy),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CleaningServices,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+                BrandShieldMark(modifier = Modifier.size(40.dp))
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text("Storage Cleaner", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = pal.TextPrimary)

@@ -5,68 +5,51 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Outer Shield Glow / Rim -->
-    <path
-        android:fillColor="#1E1B4B"
-        android:strokeColor="#6366F1"
-        android:strokeWidth="1.5"
-        android:pathData="M54,18 L80,29 C80,52 68,75 54,88 C40,75 28,52 28,29 Z"/>
+    <!-- All foreground geometry fits strictly inside 26..82 (66dp Adaptive Safe Zone) -->
 
-    <!-- Left Shield Facet (Deep Shadow Indigo) -->
+    <!-- Outer Shield Base (Deep Sapphire Shadow) -->
     <path
-        android:fillColor="#312E81"
-        android:pathData="M54,20 L29.5,30 C29.5,51.5 40.8,73.5 54,86.5 Z"/>
+        android:fillColor="#1E3A8A"
+        android:pathData="M54,25 L77,34.5 C77,55.5 67,73.5 54,83 C41,73.5 31,55.5 31,34.5 Z"/>
 
-    <!-- Right Shield Facet (Electric Indigo) -->
+    <!-- Left Facet (Deep Cobalt) -->
     <path
-        android:fillColor="#4F46E5"
-        android:pathData="M54,20 L78.5,30 C78.5,51.5 67.2,73.5 54,86.5 Z"/>
+        android:fillColor="#1D4ED8"
+        android:pathData="M54,26.5 L32.5,35.5 C32.5,55 41.8,71.8 54,81 Z"/>
 
-    <!-- Top Shield Highlight Crest -->
+    <!-- Right Facet (Electric Sapphire) -->
     <path
-        android:fillColor="#818CF8"
-        android:strokeAlpha="0.8"
-        android:pathData="M54,20 L78.5,30 L66,35 L54,27 L42,35 L29.5,30 Z"/>
+        android:fillColor="#2563EB"
+        android:pathData="M54,26.5 L75.5,35.5 C75.5,55 66.2,71.8 54,81 Z"/>
 
-    <!-- Supersonic Clean Sweep Arc (Cyber Cyan Energy Ring) -->
+    <!-- Crisp Top Crest Rim -->
+    <path
+        android:fillColor="#60A5FA"
+        android:pathData="M54,26.5 L75.5,35.5 L72.5,37.8 L54,30.2 L35.5,37.8 L32.5,35.5 Z"/>
+
+    <!-- Electric Teal Precision Sweep Arc (270-deg dynamic storage ring) -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#06B6D4"
-        android:strokeWidth="4"
+        android:strokeColor="#14B8A6"
+        android:strokeWidth="3.8"
         android:strokeLineCap="round"
-        android:pathData="M24,68 C28,78 42,82 58,74 C72,66 84,48 82,36 C80,26 70,26 62,32 C52,40 40,60 54,70"/>
+        android:pathData="M37,63 C41,70.5 49,73.5 58.5,71 C69,68.2 75.5,57.5 73.5,47"/>
 
-    <!-- Inner Core Cyan Glow Beam -->
+    <!-- Inner Bright Teal Highlight -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#22D3EE"
-        android:strokeWidth="2"
+        android:strokeColor="#2DD4BF"
+        android:strokeWidth="1.8"
         android:strokeLineCap="round"
-        android:pathData="M30,65 C38,72 52,70 66,60 C78,50 82,38 78,34"/>
+        android:pathData="M41,65.5 C46,69.5 54,70.5 62,66.8 C68.5,63.8 72.5,56.5 72,49.5"/>
 
-    <!-- Radiant Prism Sparkle Core (White & Cyan Star) -->
-    <!-- Vertical flare -->
+    <!-- Precision Storage Bar / Check Emblem Inside Shield -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,36 C54.8,45 56,48 64,52 C56,56 54.8,59 54,68 C53.2,59 52,56 44,52 C52,48 53.2,45 54,36 Z"/>
-
-    <!-- Center Bright Core -->
-    <path
-        android:fillColor="#38BDF8"
-        android:pathData="M54,48 L58,52 L54,56 L50,52 Z"/>
-
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,50 L56,52 L54,54 L52,52 Z"/>
-
-    <!-- Accent Diamond Sparkle 1 (Top Right) -->
-    <path
-        android:fillColor="#FACC15"
-        android:pathData="M74,28 L76.5,31 L74,34 L71.5,31 Z"/>
-
-    <!-- Accent Diamond Sparkle 2 (Bottom Left) -->
-    <path
-        android:fillColor="#38BDF8"
-        android:pathData="M34,60 L36,62.5 L34,65 L32,62.5 Z"/>
+        android:fillColor="#00000000"
+        android:strokeColor="#F8FAFC"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M45,52.5 L51.5,59 L64,45.5"/>
 
 </vector>

@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,6 +39,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,17 +65,21 @@ private sealed class Screen {
 }
 
 // ─── Activity ─────────────────────────────────────────────────────────────
+fun computeStorageRoots(context: Context): List<File> {
+    val primary = Environment.getExternalStorageDirectory()
+    return (listOf(primary) +
+        context.getExternalFilesDirs(null).filterNotNull()
+            .map { File(it.path.substringBefore("/Android")) })
+        .distinctBy { file -> runCatching { file.canonicalPath }.getOrElse { file.path } }
+        .filter { it.exists() && it.canRead() }
+}
+
 class MainActivity : ComponentActivity() {
     private val hasAccess = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val primary = Environment.getExternalStorageDirectory()
-        val roots = (listOf(primary) +
-            getExternalFilesDirs(null).filterNotNull()
-                .map { File(it.path.substringBefore("/Android")) })
-            .distinctBy { file -> runCatching { file.canonicalPath }.getOrElse { file.path } }
-            .filter { it.exists() && it.canRead() }
+        val primaryPath = Environment.getExternalStorageDirectory().path
 
         setContent {
             val prefs = remember { getSharedPreferences("storage_cleaner_prefs", Context.MODE_PRIVATE) }
@@ -102,8 +108,7 @@ class MainActivity : ComponentActivity() {
                 MaterialTheme(colorScheme = if (isDark) darkAppColorScheme() else lightAppColorScheme()) {
                     Surface(Modifier.fillMaxSize(), color = activePalette.Background) {
                         StorageCleanerApp(
-                            roots = roots,
-                            primaryPath = primary.path,
+                            primaryPath = primaryPath,
                             hasAccess = hasAccess.value,
                             themeMode = themeMode,
                             onThemeModeChange = { newMode ->
@@ -143,7 +148,6 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StorageCleanerApp(
-    roots: List<File>,
     primaryPath: String,
     hasAccess: Boolean,
     themeMode: String,
@@ -159,37 +163,8 @@ fun StorageCleanerApp(
     var screen by remember { mutableStateOf<Screen>(Screen.FileList) }
     var tick by remember { mutableStateOf(0) }
     var trashCount by remember { mutableStateOf(0) }
-
-    LaunchedEffect(screen, tick) {
-        trashCount = withContext(Dispatchers.IO) { RecycleBin.loadItems().size }
-    }
-
-    BackHandler(enabled = drawerState.isOpen) {
-        scope.launch { drawerState.close() }
-    }
-
-    BackHandler(enabled = !drawerState.isOpen && screen != Screen.FileList) {
-        screen = Screen.FileList
-        tick++
-    }
-
-    when (screen) {
-        is Screen.RecycleBin -> {
-            RecycleBinScreen(context = ctx, onBack = {
-                screen = Screen.FileList
-                tick++
-            })
-            return
-        }
-        is Screen.AppCache -> {
-            AppCacheScreen(context = ctx, onBack = {
-                screen = Screen.FileList
-                tick++
-            })
-            return
-        }
-        else -> Unit
-    }
+    var excludedFolders by remember { mutableStateOf(ExclusionManager.getExcludedFolders(ctx)) }
+    val roots = remember(hasAccess, tick) { computeStorageRoots(ctx) }
 
     // ── File list state ───────────────────────────────────────────────
     var scanning by remember { mutableStateOf(false) }
@@ -206,13 +181,81 @@ fun StorageCleanerApp(
     var feedbackOk by remember { mutableStateOf(true) }
     var sortIndex by remember { mutableStateOf(0) }
     var query by remember { mutableStateOf("") }
-    var curDir by remember { mutableStateOf(if (roots.size == 1) roots[0].path else "") }
+    var curDir by remember { mutableStateOf("") }
     var showChart by remember { mutableStateOf(false) }
     var showReminderDialog by remember { mutableStateOf(false) }
+    var showExclusionsDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
 
     var previewItem by remember { mutableStateOf<FileItem?>(null) }
     var comparingItem by remember { mutableStateOf<FileItem?>(null) }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val days = ExclusionManager.getTrashRetention(ctx).days
+            if (days > 0) RecycleBin.purgeExpired(ctx, days)
+            trashCount = RecycleBin.loadItems().size
+        }
+    }
+
+    LaunchedEffect(roots) {
+        if (curDir.isEmpty() && roots.size == 1) {
+            curDir = roots[0].path
+        }
+    }
+
+    LaunchedEffect(screen, tick) {
+        trashCount = withContext(Dispatchers.IO) { RecycleBin.loadItems().size }
+    }
+
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
+
+    BackHandler(enabled = !drawerState.isOpen && screen != Screen.FileList) {
+        screen = Screen.FileList
+        tick++
+    }
+
+    when (screen) {
+        is Screen.RecycleBin -> {
+            RecycleBinScreen(
+                context = ctx,
+                onBack = {
+                    screen = Screen.FileList
+                    tick++
+                },
+                onRestored = { restoredItems ->
+                    val cur = scanResult
+                    if (cur != null) {
+                        val now = System.currentTimeMillis()
+                        val newFiles = cur.files.toMutableList()
+                        val newDirs = cur.emptyDirs.toMutableList()
+                        for (t in restoredItems) {
+                            val f = File(t.originalPath)
+                            if (f.exists()) {
+                                if (f.isDirectory) {
+                                    if (newDirs.none { it.path == f.path }) newDirs.add(FileItem(f.path, 0L, f.lastModified(), true))
+                                } else {
+                                    if (newFiles.none { it.path == f.path }) newFiles.add(makeItem(f, now))
+                                }
+                            }
+                        }
+                        scanResult = cur.copy(files = newFiles, emptyDirs = newDirs)
+                    }
+                }
+            )
+            return
+        }
+        is Screen.AppCache -> {
+            AppCacheScreen(context = ctx, onBack = {
+                screen = Screen.FileList
+                tick++
+            })
+            return
+        }
+        else -> Unit
+    }
 
     val rootPaths = remember(roots) { roots.map { it.path }.toSet() }
     val sc = scanResult
@@ -264,7 +307,8 @@ fun StorageCleanerApp(
         else {
             var c = 0; var s = 0L
             sc.files.forEach { f -> if (covered(f.path, selected)) { c++; s += f.size } }
-            c to s
+            sc.emptyDirs.forEach { d -> if (covered(d.path, selected)) { c++ } }
+            maxOf(c, selected.size) to s
         }
     }
 
@@ -316,6 +360,7 @@ fun StorageCleanerApp(
                     else -> "FileList"
                 },
                 trashCount = trashCount,
+                excludedCount = excludedFolders.size,
                 themeMode = themeMode,
                 onSelectScreen = { sel ->
                     screen = when (sel) {
@@ -326,6 +371,7 @@ fun StorageCleanerApp(
                 },
                 onThemeModeChange = onThemeModeChange,
                 onShowReminders = { showReminderDialog = true },
+                onShowExclusions = { showExclusionsDialog = true },
                 onCheckUpdates = { showUpdateDialog = true },
                 onCloseDrawer = { scope.launch { drawerState.close() } }
             )
@@ -399,7 +445,12 @@ fun StorageCleanerApp(
 
                         // ── Pill Category Filter Chips ─────────────────────────
                         if (sc != null) {
+                            val tabListState = rememberLazyListState()
+                            LaunchedEffect(tabIndex) {
+                                tabListState.animateScrollToItem(tabIndex)
+                            }
                             LazyRow(
+                                state = tabListState,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(pal.Background)
@@ -470,32 +521,62 @@ fun StorageCleanerApp(
                                     placeholder = "Search files in ${TABS[tabIndex]}…",
                                     modifier = Modifier.weight(1f)
                                 )
-                                Surface(
-                                    onClick = { sortIndex = (sortIndex + 1) % SORTS.size },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = pal.CardBg,
-                                    border = BorderStroke(1.dp, pal.DividerColor),
-                                    modifier = Modifier.heightIn(min = 44.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                var sortExpanded by remember { mutableStateOf(false) }
+                                Box {
+                                    Surface(
+                                        onClick = { sortExpanded = true },
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = pal.CardBg,
+                                        border = BorderStroke(1.dp, pal.DividerColor),
+                                        modifier = Modifier.heightIn(min = 44.dp)
                                     ) {
-                                        Icon(
-                                            Icons.AutoMirrored.Filled.Sort,
-                                            contentDescription = "Sort",
-                                            tint = pal.Navy,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Text(
-                                            text = SORTS[sortIndex],
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = pal.TextPrimary,
-                                            maxLines = 1,
-                                            softWrap = false
-                                        )
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.AutoMirrored.Filled.Sort,
+                                                contentDescription = "Sort options",
+                                                tint = pal.PrimaryText,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = SORTS[sortIndex],
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = pal.TextPrimary,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
+                                    DropdownMenu(
+                                        expanded = sortExpanded,
+                                        onDismissRequest = { sortExpanded = false },
+                                        modifier = Modifier.background(pal.CardBg)
+                                    ) {
+                                        SORTS.forEachIndexed { idx, label ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        label,
+                                                        fontSize = 13.sp,
+                                                        fontWeight = if (idx == sortIndex) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (idx == sortIndex) pal.PrimaryText else pal.TextPrimary
+                                                    )
+                                                },
+                                                trailingIcon = {
+                                                    if (idx == sortIndex) {
+                                                        Icon(Icons.Default.Check, null, tint = pal.PrimaryText, modifier = Modifier.size(16.dp))
+                                                    }
+                                                },
+                                                onClick = {
+                                                    sortIndex = idx
+                                                    sortExpanded = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -527,7 +608,11 @@ fun StorageCleanerApp(
                                             statusFlow.value = "Preparing file index…"
                                             try {
                                                 val res = withContext(Dispatchers.IO) {
-                                                    scan(roots, isCancelled = { scanCancelled }) {
+                                                    scan(
+                                                        roots = roots,
+                                                        excludedPaths = excludedFolders,
+                                                        isCancelled = { scanCancelled }
+                                                    ) {
                                                         statusFlow.value = it
                                                     }
                                                 }
@@ -644,19 +729,18 @@ fun StorageCleanerApp(
                                         Row(
                                             Modifier
                                                 .fillMaxWidth()
-                                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                                                .padding(horizontal = 12.dp, vertical = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             if (canGoUp) {
-                                                IconButton(onClick = { goUp() }, Modifier.size(32.dp)) {
+                                                IconButton(onClick = { goUp() }, Modifier.size(44.dp)) {
                                                     Icon(
                                                         Icons.AutoMirrored.Filled.ArrowBack,
                                                         "Parent folder",
                                                         Modifier.size(18.dp),
-                                                        tint = pal.Navy
+                                                        tint = pal.PrimaryText
                                                     )
                                                 }
-                                                Spacer(Modifier.width(4.dp))
                                             }
                                             Text(
                                                 if (curDir.isEmpty()) "Storage volumes"
@@ -666,8 +750,45 @@ fun StorageCleanerApp(
                                                 fontWeight = FontWeight.Medium,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .padding(horizontal = 4.dp)
                                             )
+                                            if (curDir.isNotEmpty() && curDir !in rootPaths) {
+                                                val alreadyExcluded = normalizePathLexically(curDir) in excludedFolders
+                                                TextButton(
+                                                    onClick = {
+                                                        val target = curDir
+                                                        if (alreadyExcluded) {
+                                                            ExclusionManager.removeExcludedFolder(ctx, target)
+                                                            feedbackMsg = "Removed folder from exclusions"
+                                                        } else {
+                                                            ExclusionManager.addExcludedFolder(ctx, target)
+                                                            feedbackMsg = "Folder will be skipped on next scan"
+                                                        }
+                                                        excludedFolders = ExclusionManager.getExcludedFolders(ctx)
+                                                        feedbackOk = true
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                                    modifier = Modifier.heightIn(min = 44.dp)
+                                                ) {
+                                                    Text(
+                                                        if (alreadyExcluded) "Included" else "Exclude",
+                                                        fontSize = 11.sp,
+                                                        color = if (alreadyExcluded) pal.Success else pal.TextSecond,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
+                                            }
+                                            if (canGoUp && curDir !in rootPaths) {
+                                                TextButton(
+                                                    onClick = { curDir = if (roots.size == 1) roots[0].path else "" },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                                    modifier = Modifier.heightIn(min = 44.dp)
+                                                ) {
+                                                    Text("Root", fontSize = 11.sp, color = pal.PrimaryText, fontWeight = FontWeight.SemiBold)
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -685,9 +806,29 @@ fun StorageCleanerApp(
                                             "${shown.size} items  •  ${fmt(shown.sumOf { it.size })}",
                                             fontSize = 12.sp,
                                             color = pal.TextSecond,
-                                            fontWeight = FontWeight.Medium
+                                            fontWeight = FontWeight.Medium,
+                                            style = TextStyle(fontFeatureSettings = "tnum")
                                         )
                                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            if (tabIndex == 3 && sc.duplicates.isNotEmpty()) {
+                                                TextButton(
+                                                    onClick = {
+                                                        selected = if (sc.duplicates.all { it in selected }) {
+                                                            selected - sc.duplicates
+                                                        } else {
+                                                            selected + sc.duplicates
+                                                        }
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text(
+                                                        if (sc.duplicates.all { it in selected }) "Unselect copies" else "Select copies",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = pal.AccentDark
+                                                    )
+                                                }
+                                            }
                                             TextButton(
                                                 onClick = {
                                                     val paths = shown.map { it.path }
@@ -714,21 +855,51 @@ fun StorageCleanerApp(
                             if (sc != null) {
                                 if (shown.isEmpty()) {
                                     item {
-                                        Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
+                                        Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Icon(
-                                                    Icons.Default.CheckCircleOutline,
-                                                    null,
-                                                    tint = pal.Success,
-                                                    modifier = Modifier.size(44.dp)
-                                                )
-                                                Spacer(Modifier.height(10.dp))
-                                                Text(
-                                                    "Clean & Clear\nNo files found in this category.",
-                                                    fontSize = 14.sp,
-                                                    color = pal.TextSecond,
-                                                    textAlign = TextAlign.Center
-                                                )
+                                                if (query.isNotBlank()) {
+                                                    Icon(
+                                                        Icons.Default.SearchOff,
+                                                        null,
+                                                        tint = pal.TextSecond,
+                                                        modifier = Modifier.size(42.dp)
+                                                    )
+                                                    Spacer(Modifier.height(10.dp))
+                                                    Text(
+                                                        "No files match \"$query\"",
+                                                        fontSize = 15.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = pal.TextPrimary,
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Text(
+                                                        "Try a different keyword or clear the search filter.",
+                                                        fontSize = 13.sp,
+                                                        color = pal.TextSecond,
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                    Spacer(Modifier.height(14.dp))
+                                                    CleanOutlinedButton(
+                                                        text = "Clear Search",
+                                                        icon = Icons.Default.Close,
+                                                        onClick = { query = "" }
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        Icons.Default.CheckCircleOutline,
+                                                        null,
+                                                        tint = pal.Success,
+                                                        modifier = Modifier.size(44.dp)
+                                                    )
+                                                    Spacer(Modifier.height(10.dp))
+                                                    Text(
+                                                        "Clean & Clear\nNo files found in this category.",
+                                                        fontSize = 14.sp,
+                                                        color = pal.TextSecond,
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -792,23 +963,25 @@ fun StorageCleanerApp(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text(
-                                        "${selected.size} selected",
+                                        "${selInfo.first} selected",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
-                                        color = pal.TextPrimary
+                                        color = pal.TextPrimary,
+                                        style = TextStyle(fontFeatureSettings = "tnum")
                                     )
                                     Text("•", color = pal.TextSecond)
                                     Text(
                                         fmt(selInfo.second),
                                         fontSize = 13.sp,
                                         color = pal.AccentDark,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        style = TextStyle(fontFeatureSettings = "tnum")
                                     )
                                 }
                                 TextButton(
                                     onClick = { selected = emptySet() },
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                    modifier = Modifier.heightIn(min = 28.dp)
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.heightIn(min = 44.dp)
                                 ) {
                                     Text("Clear", color = pal.TextSecond, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
@@ -828,9 +1001,8 @@ fun StorageCleanerApp(
                                             statusFlow.value = "Moving selected items to Recycle Bin…"
                                             var moved = 0; var fail = 0
                                             withContext(Dispatchers.IO) {
-                                                for (path in selected) {
-                                                    if (RecycleBin.moveToTrash(File(path), ctx)) moved++ else fail++
-                                                }
+                                                val (m, f) = RecycleBin.moveManyToTrash(selected.toList(), ctx)
+                                                moved = m; fail = f
                                                 val tset = selected
                                                 val nf = sc!!.files.filter { !covered(it.path, tset) || File(it.path).exists() }
                                                 val ne = sc.emptyDirs.filter { !covered(it.path, tset) || File(it.path).exists() }
@@ -998,8 +1170,15 @@ fun StorageCleanerApp(
 
         val notifLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission()
-        ) { _ ->
-            ReminderManager.setInterval(ctx, selectedInterval)
+        ) { granted ->
+            if (granted) {
+                ReminderManager.setInterval(ctx, selectedInterval)
+                feedbackOk = true
+                feedbackMsg = "Scan reminder scheduled: ${selectedInterval.label}"
+            } else {
+                feedbackOk = false
+                feedbackMsg = "Notification permission denied — reminders won't appear."
+            }
         }
 
         AlertDialog(
@@ -1066,6 +1245,74 @@ fun StorageCleanerApp(
                         }
                     )
                 }
+            }
+        )
+    }
+
+    // ── Excluded Folders Management Dialog ────────────────────────────────
+    if (showExclusionsDialog) {
+        val list = excludedFolders.sorted()
+        AlertDialog(
+            onDismissRequest = { showExclusionsDialog = false },
+            containerColor = pal.CardBg,
+            icon = { Icon(Icons.Default.FolderOff, null, tint = pal.Navy) },
+            title = { Text("Excluded Folders", fontWeight = FontWeight.Bold, color = pal.TextPrimary) },
+            text = {
+                if (list.isEmpty()) {
+                    Text(
+                        "No excluded folders yet.\n\nTo exclude a folder, browse into it under the Folders tab and tap \"Exclude\" in the breadcrumb bar.",
+                        fontSize = 13.sp,
+                        color = pal.TextSecond
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 260.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        list.forEach { path ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = pal.Background,
+                                border = BorderStroke(1.dp, pal.DividerColor)
+                            ) {
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        path.removePrefix("/storage/emulated/0").ifEmpty { path },
+                                        fontSize = 12.sp,
+                                        color = pal.TextPrimary,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            ExclusionManager.removeExcludedFolder(ctx, path)
+                                            excludedFolders = ExclusionManager.getExcludedFolders(ctx)
+                                        },
+                                        modifier = Modifier.size(44.dp)
+                                    ) {
+                                        Icon(Icons.Default.Close, "Remove exclusion", tint = pal.Danger, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                CleanPrimaryButton(
+                    text = "Done",
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showExclusionsDialog = false }
+                )
             }
         )
     }
@@ -1182,7 +1429,7 @@ fun FileRow(
         Modifier
             .fillMaxWidth()
             .background(bg)
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onCheck)
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1272,7 +1519,8 @@ fun FileRow(
                     fmt(item.size),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = pal.TextPrimary
+                    color = pal.TextPrimary,
+                    style = TextStyle(fontFeatureSettings = "tnum")
                 )
                 Checkbox(
                     checked = isSelected,
@@ -1392,7 +1640,7 @@ fun SummaryStat(icon: ImageVector, value: String, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(icon, null, tint = pal.PrimaryText, modifier = Modifier.size(20.dp))
         Spacer(Modifier.height(4.dp))
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = pal.TextPrimary)
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = pal.TextPrimary, style = TextStyle(fontFeatureSettings = "tnum"))
         Text(label, fontSize = 11.sp, color = pal.TextSecond)
     }
 }

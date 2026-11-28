@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
+import androidx.core.graphics.drawable.toBitmap
 import com.example.storagecleaner.data.*
 import com.example.storagecleaner.security.SecureDelete
 import kotlinx.coroutines.Dispatchers
@@ -110,7 +112,9 @@ private fun decodeOrientedBitmap(path: String, maxDim: Int = 1200): Triple<Bitma
         }
         if (angle != 0f) {
             val matrix = Matrix().apply { postRotate(angle) }
-            Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, matrix, true)
+            val rotated = Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, matrix, true)
+            if (rotated !== raw) raw.recycle()
+            rotated
         } else raw
     } catch (_: Exception) { raw }
 
@@ -125,7 +129,9 @@ fun FilePreviewDialog(
     item: FileItem,
     onDismiss: () -> Unit,
     onTrash: (path: String) -> Unit,
-    onDelete: (path: String, mode: SecureDelete.Mode) -> Unit
+    onDelete: (path: String, mode: SecureDelete.Mode) -> Unit,
+    isInTrash: Boolean = false,
+    onRestore: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val pal = appPalette()
@@ -177,6 +183,23 @@ fun FilePreviewDialog(
                             mediaExtra = listOfNotNull(title, artist, durStr).joinToString("  •  ")
                         } catch (_: Exception) {}
                         finally { mmr.release() }
+                    }
+                    KIND_APK -> {
+                        try {
+                            val pm = context.packageManager
+                            @Suppress("DEPRECATION")
+                            val info = pm.getPackageArchiveInfo(item.path, 0)
+                            if (info != null) {
+                                info.applicationInfo?.sourceDir = item.path
+                                info.applicationInfo?.publicSourceDir = item.path
+                                val appName = info.applicationInfo?.let { pm.getApplicationLabel(it).toString() }
+                                val ver = info.versionName ?: "v?"
+                                mediaExtra = listOfNotNull(appName, "v$ver", info.packageName).joinToString("  •  ")
+                                bitmap = info.applicationInfo?.let {
+                                    runCatching { pm.getApplicationIcon(it).toBitmap(192, 192) }.getOrNull()
+                                }
+                            }
+                        } catch (_: Exception) {}
                     }
                     else -> {
                         val ext = item.path.substringAfterLast('.', "").lowercase()
@@ -245,7 +268,7 @@ fun FilePreviewDialog(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(34.dp)) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(44.dp)) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = pal.TextSecond)
                     }
                 }
@@ -365,7 +388,13 @@ fun FilePreviewDialog(
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Size", fontSize = 11.sp, color = pal.TextSecond)
-                            Text("${fmt(item.size)} (${item.size} B)", fontSize = 11.sp, color = pal.TextPrimary, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "${fmt(item.size)} (${item.size} B)",
+                                fontSize = 11.sp,
+                                color = pal.TextPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                style = TextStyle(fontFeatureSettings = "tnum")
+                            )
                         }
                     }
                 }
@@ -384,15 +413,29 @@ fun FilePreviewDialog(
                     }
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        CleanOutlinedButton(
-                            text = "Trash",
-                            icon = Icons.Default.DeleteOutline,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                onTrash(item.path)
-                                onDismiss()
-                            }
-                        )
+                        if (isInTrash && onRestore != null) {
+                            CleanOutlinedButton(
+                                text = "Restore",
+                                icon = Icons.Default.Restore,
+                                contentColor = pal.PrimaryText,
+                                borderColor = pal.PrimaryText.copy(alpha = 0.45f),
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    onRestore()
+                                    onDismiss()
+                                }
+                            )
+                        } else {
+                            CleanOutlinedButton(
+                                text = "Trash",
+                                icon = Icons.Default.DeleteOutline,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    onTrash(item.path)
+                                    onDismiss()
+                                }
+                            )
+                        }
                         CleanPrimaryButton(
                             text = "Wipe",
                             icon = Icons.Default.DeleteForever,

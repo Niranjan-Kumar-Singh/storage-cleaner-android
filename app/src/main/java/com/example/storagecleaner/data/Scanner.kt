@@ -46,9 +46,19 @@ fun isSystemPath(path: String): Boolean {
     val norm = normalizePathLexically(path)
     val low = norm.lowercase()
     return SYSTEM_PROTECTED_PATHS.any { prot ->
-        norm == prot || norm.startsWith("$prot/")
+        val protLow = prot.lowercase()
+        low == protLow || low.startsWith("$protLow/")
     } || SYSTEM_PATH_SEGMENTS.any { seg ->
         low.contains(seg) || "$low/".contains(seg)
+    }
+}
+
+fun isExcludedPath(path: String, excludedPaths: Set<String>): Boolean {
+    if (excludedPaths.isEmpty()) return false
+    val norm = normalizePathLexically(path)
+    return excludedPaths.any { ex ->
+        val exNorm = normalizePathLexically(ex)
+        norm == exNorm || norm.startsWith("$exNorm/")
     }
 }
 
@@ -90,6 +100,7 @@ internal fun hash(f: File, full: Boolean): String = try {
 // ─── Main scan ────────────────────────────────────────────────────────────
 fun scan(
     roots: List<File>,
+    excludedPaths: Set<String> = emptySet(),
     isCancelled: () -> Boolean = { false },
     status: (String) -> Unit
 ): ScanResult {
@@ -103,12 +114,13 @@ fun scan(
                 !isCancelled() &&
                     !Files.isSymbolicLink(dir.toPath()) &&
                     !isSystemPath(dir.path) &&
-                    !isInternalTrashPath(dir.path)
+                    !isInternalTrashPath(dir.path) &&
+                    !isExcludedPath(dir.path, excludedPaths)
             }
             .forEach { f ->
                 if (isCancelled()) return@forEach
                 try {
-                    if (isInternalTrashPath(f.path)) return@forEach
+                    if (isInternalTrashPath(f.path) || isExcludedPath(f.path, excludedPaths)) return@forEach
                     if (f.isDirectory) {
                         if (f != root) {
                             val listing = f.list()
@@ -178,11 +190,12 @@ fun listFor(tab: String, s: ScanResult): List<FileItem> = when (tab) {
 }
 
 fun folderChildren(cur: String, s: ScanResult, ds: Map<String, Long>, roots: List<File>): List<FileItem> {
-    if (cur.isEmpty()) return roots.map { FileItem(it.path, ds[it.path] ?: 0L, 0L, true) }
+    val normCur = cur.replace('\\', '/')
+    if (normCur.isEmpty()) return roots.map { FileItem(it.path, ds[it.path.replace('\\', '/')] ?: 0L, 0L, true) }
     val out = ArrayList<FileItem>()
-    for ((k, v) in ds) if (parentOf(k) == cur) out.add(FileItem(k, v, File(k).lastModified(), true))
-    for (e in s.emptyDirs) if (parentOf(e.path) == cur) out.add(e)
-    for (f in s.files) if (parentOf(f.path) == cur) out.add(f)
+    for ((k, v) in ds) if (parentOf(k) == normCur) out.add(FileItem(k, v, File(k).lastModified(), true))
+    for (e in s.emptyDirs) if (parentOf(e.path) == normCur) out.add(e)
+    for (f in s.files) if (parentOf(f.path) == normCur) out.add(f)
     return out
 }
 
